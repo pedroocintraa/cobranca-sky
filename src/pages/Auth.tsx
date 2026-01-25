@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Receipt } from 'lucide-react';
+import { Loader2, Leaf } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido').max(255, 'Email muito longo'),
@@ -109,29 +109,32 @@ export default function Auth() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen w-full flex-col items-center justify-center gradient-verdant p-4">
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary">
-          <Receipt className="h-7 w-7 text-primary-foreground" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-md">
+          <Leaf className="h-7 w-7 text-primary-foreground" />
         </div>
-        <h1 className="text-2xl font-bold text-foreground">CRM Cobrança</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">CRM Cobrança</h1>
+          <p className="text-sm text-muted-foreground">Sistema de gestão profissional</p>
+        </div>
       </div>
 
-      <Card className="w-full max-w-md shadow-card">
-        <CardHeader className="text-center">
-          <CardTitle className="text-xl">Acesse sua conta</CardTitle>
-          <CardDescription>
+      <Card className="w-full max-w-md border-border/50 shadow-card">
+        <CardHeader className="text-center pb-2">
+          <CardTitle className="text-xl font-semibold">Acesse sua conta</CardTitle>
+          <CardDescription className="text-muted-foreground">
             Entre com suas credenciais ou crie uma nova conta
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="pt-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Entrar</TabsTrigger>
-              <TabsTrigger value="signup">Cadastrar</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login" className="font-medium">Entrar</TabsTrigger>
+              <TabsTrigger value="signup" className="font-medium">Cadastrar</TabsTrigger>
             </TabsList>
 
-            <TabsContent value="login" className="mt-6">
+            <TabsContent value="login" className="mt-0">
               <Form {...loginForm}>
                 <form onSubmit={loginForm.handleSubmit(handleLogin)} className="space-y-4">
                   <FormField
@@ -139,12 +142,13 @@ export default function Auth() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel className="text-foreground">Email</FormLabel>
                         <FormControl>
                           <Input 
                             type="email" 
                             placeholder="seu@email.com" 
                             autoComplete="email"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -157,12 +161,13 @@ export default function Auth() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Senha</FormLabel>
+                        <FormLabel className="text-foreground">Senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
                             placeholder="••••••" 
                             autoComplete="current-password"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -170,7 +175,7 @@ export default function Auth() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full h-11 font-medium mt-2" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Entrar
                   </Button>
@@ -178,7 +183,7 @@ export default function Auth() {
               </Form>
             </TabsContent>
 
-            <TabsContent value="signup" className="mt-6">
+            <TabsContent value="signup" className="mt-0">
               <Form {...signUpForm}>
                 <form onSubmit={signUpForm.handleSubmit(handleSignUp)} className="space-y-4">
                   <FormField
@@ -186,11 +191,12 @@ export default function Auth() {
                     name="nome"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Nome completo</FormLabel>
+                        <FormLabel className="text-foreground">Nome completo</FormLabel>
                         <FormControl>
                           <Input 
                             placeholder="Seu nome" 
                             autoComplete="name"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -203,12 +209,13 @@ export default function Auth() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel className="text-foreground">Email</FormLabel>
                         <FormControl>
                           <Input 
                             type="email" 
                             placeholder="seu@email.com" 
                             autoComplete="email"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -221,12 +228,13 @@ export default function Auth() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Senha</FormLabel>
+                        <FormLabel className="text-foreground">Senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
                             placeholder="Mínimo 6 caracteres" 
                             autoComplete="new-password"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -239,12 +247,13 @@ export default function Auth() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirmar senha</FormLabel>
+                        <FormLabel className="text-foreground">Confirmar senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
                             placeholder="Repita a senha" 
                             autoComplete="new-password"
+                            className="h-11"
                             {...field} 
                           />
                         </FormControl>
@@ -252,7 +261,7 @@ export default function Auth() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full" disabled={isLoading}>
+                  <Button type="submit" className="w-full h-11 font-medium mt-2" disabled={isLoading}>
                     {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Criar conta
                   </Button>
