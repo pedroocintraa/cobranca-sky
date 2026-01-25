@@ -1,160 +1,110 @@
 
-# Plano: Conectar Todos os Dados ao Banco de Dados
 
-## Situacao Atual
+# Plano: Tornar Apenas CPF Obrigatório na Importação
 
-Analisei o codigo e identifiquei os seguintes problemas:
+## Situação Atual
 
-### Dados Estaticos Encontrados
+O sistema exige três campos obrigatórios:
+- Nome do Cliente
+- Valor  
+- Data de Vencimento
 
-| Componente | Problema | Status |
-|------------|----------|--------|
-| `OverviewChart` | Usa dados estaticos (Jan-Dez com valores fixos) | Precisa corrigir |
-| `CustomersChart` | Tem fallback para dados estaticos, mas recebe `pieData` do Dashboard | Funcionando |
-| `MetricCard` | Indicadores de variacao (12%, 8%, etc.) sao hardcoded | Precisa corrigir |
-| `RecentCharges` | Ja recebe dados do banco via `useCobrancas` | Funcionando |
-| Paginas Clientes/Cobrancas | Ja usam hooks com dados do banco | Funcionando |
+Você quer que **apenas o CPF seja obrigatório**.
 
-### Dados Ja Funcionando
+## Considerações do Banco de Dados
 
-- `useDashboardMetrics()` - Calcula metricas corretamente do banco
-- `useCobrancas()` - Busca cobrancas com cliente e status
-- `useClientes()` - Busca clientes do banco
-- `CustomersChart` - Recebe `pieData` calculado das metricas reais
+Analisei as tabelas e encontrei estas restrições:
 
----
+| Tabela | Campo | Restrição |
+|--------|-------|-----------|
+| `clientes` | `nome` | NOT NULL (obrigatório) |
+| `cobrancas` | `valor` | Default: 0 |
+| `cobrancas` | `data_vencimento` | NOT NULL (obrigatório) |
 
-## Mudancas Necessarias
+Para contornar isso, vou:
+- Usar o CPF como nome quando o nome não for mapeado
+- Usar 0 como valor padrão
+- Usar a data atual como vencimento padrão
 
-### 1. OverviewChart - Dados Mensais do Banco
+## Mudanças Necessárias
 
-**Problema**: O grafico de barras mostra valores estaticos (4000, 3000, 5000...).
+### Arquivo: `src/pages/Importar.tsx`
 
-**Solucao**: 
-- Criar hook `useMonthlyMetrics()` que agrupa cobrancas por mes
-- Passar dados reais para o componente
-- Manter fallback para quando nao ha dados
-
-**Arquivo**: `src/hooks/useCobrancas.tsx`
+**1. Atualizar labels dos campos (linha 67-76)**
 ```text
-Adicionar funcao useMonthlyMetrics():
-- Busca cobrancas do ano atual
-- Agrupa por mes usando data_vencimento
-- Retorna array { month: 'Jan', value: soma_valores }
+Antes:
+  nome: 'Nome do Cliente *'
+  valor: 'Valor *'
+  data_vencimento: 'Data Vencimento *'
+  cpf: 'CPF'
+
+Depois:
+  nome: 'Nome do Cliente'
+  valor: 'Valor'
+  data_vencimento: 'Data Vencimento'
+  cpf: 'CPF *'
 ```
 
-**Arquivo**: `src/components/dashboard/OverviewChart.tsx`
+**2. Alterar validação inicial (linha 216-224)**
 ```text
-- Remover defaultData estatico
-- Receber dados via props obrigatoriamente
-- Mostrar estado vazio quando sem dados
+Antes:
+  if (!mapping.nome || !mapping.valor || !mapping.data_vencimento) {
+    toast({ description: 'Mapeie os campos Nome, Valor e Data de Vencimento.' });
+    return;
+  }
+
+Depois:
+  if (!mapping.cpf) {
+    toast({ description: 'Mapeie o campo CPF.' });
+    return;
+  }
 ```
 
-**Arquivo**: `src/pages/Dashboard.tsx`
+**3. Ajustar lógica de processamento (linha 236-250)**
 ```text
-- Importar useMonthlyMetrics
-- Passar dados para OverviewChart
+Antes:
+  const nome = row[mapping.nome]?.trim();
+  if (!nome || !dataVencimento) { erro... }
+
+Depois:
+  const cpf = row[mapping.cpf]?.trim();
+  const nome = mapping.nome ? row[mapping.nome]?.trim() : cpf;
+  const valor = mapping.valor ? parseValor(row[mapping.valor]) : 0;
+  const dataVencimento = mapping.data_vencimento 
+    ? parseDate(row[mapping.data_vencimento]) 
+    : new Date().toISOString().split('T')[0];
+  
+  if (!cpf) { 
+    erro: 'CPF inválido ou vazio';
+    continue; 
+  }
 ```
 
-### 2. MetricCard - Remover Indicadores Estaticos
-
-**Problema**: Os percentuais de variacao (12%, 8%, 5%, 3%) sao valores fixos.
-
-**Solucao**: 
-- Remover prop `change` dos MetricCards por enquanto
-- OU calcular variacao real comparando com mes anterior (mais complexo)
-
-**Opcao Escolhida**: Remover os indicadores estaticos para nao mostrar dados falsos.
-
-**Arquivo**: `src/pages/Dashboard.tsx`
+**4. Ajustar busca de cliente existente (linha 254-256)**
 ```text
-- Remover prop change={{ value: X, type: 'increase/decrease' }}
-- Cards mostrarao apenas o valor atual (que e real)
+Antes:
+  const existingCliente = clientes?.find(
+    (c) => (cpf && c.cpf === cpf) || c.nome.toLowerCase() === nome.toLowerCase()
+  );
+
+Depois:
+  const existingCliente = clientes?.find((c) => c.cpf === cpf);
 ```
 
-### 3. CustomersChart - Melhorar Fallback
+## Comportamento Final
 
-**Problema**: Quando nao ha dados, mostra percentuais estaticos.
-
-**Solucao**:
-- Mostrar estado vazio quando `pieData` for undefined
-- Remover `defaultData` estatico
-
-**Arquivo**: `src/components/dashboard/CustomersChart.tsx`
-```text
-- Remover defaultData
-- Adicionar estado vazio quando data undefined/vazio
-```
-
----
-
-## Arquivos a Modificar
-
-| Arquivo | Alteracao |
-|---------|-----------|
-| `src/hooks/useCobrancas.tsx` | Adicionar `useMonthlyMetrics()` |
-| `src/components/dashboard/OverviewChart.tsx` | Remover dados estaticos, adicionar estado vazio |
-| `src/components/dashboard/CustomersChart.tsx` | Remover defaultData, adicionar estado vazio |
-| `src/pages/Dashboard.tsx` | Usar `useMonthlyMetrics`, remover indicadores estaticos |
-
----
-
-## Detalhes Tecnicos
-
-### Hook useMonthlyMetrics
-
-```text
-export function useMonthlyMetrics() {
-  return useQuery({
-    queryKey: ['monthly-metrics'],
-    queryFn: async () => {
-      const currentYear = new Date().getFullYear();
-      const startDate = `${currentYear}-01-01`;
-      const endDate = `${currentYear}-12-31`;
-      
-      // Busca cobrancas do ano
-      const { data, error } = await supabase
-        .from('cobrancas')
-        .select('valor, data_vencimento')
-        .gte('data_vencimento', startDate)
-        .lte('data_vencimento', endDate);
-
-      // Agrupa por mes
-      const monthlyData = Array(12).fill(0);
-      data?.forEach(c => {
-        const month = new Date(c.data_vencimento).getMonth();
-        monthlyData[month] += Number(c.valor) || 0;
-      });
-
-      // Retorna no formato esperado pelo grafico
-      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 
-                      'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-      return months.map((month, i) => ({ month, value: monthlyData[i] }));
-    },
-  });
-}
-```
-
-### Estado Vazio nos Graficos
-
-```text
-// OverviewChart quando sem dados
-<div className="flex items-center justify-center h-[280px]">
-  <p className="text-muted-foreground">Nenhuma cobranca registrada</p>
-</div>
-
-// CustomersChart quando sem dados  
-<div className="flex items-center justify-center h-[280px]">
-  <p className="text-muted-foreground">Sem dados para exibir</p>
-</div>
-```
-
----
+| Campo | Obrigatório | Valor Padrão |
+|-------|-------------|--------------|
+| CPF | Sim | - |
+| Nome | Não | Usa o CPF |
+| Valor | Não | 0 |
+| Data Vencimento | Não | Data atual |
+| Demais campos | Não | null |
 
 ## Resultado Esperado
 
-- Dashboard mostra valores reais do banco de dados
-- Graficos exibem dados baseados em cobrancas reais
-- Estados vazios claros quando nao ha dados
-- Sem valores falsos ou estaticos exibidos ao usuario
-- Sistema pronto para receber e exibir dados conforme forem cadastrados
+- Importação funciona apenas com coluna CPF mapeada
+- Clientes são identificados/criados pelo CPF
+- Campos opcionais usam valores padrão quando não mapeados
+- Labels atualizados para refletir novo campo obrigatório
+
