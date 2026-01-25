@@ -12,20 +12,11 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen, LayoutDashboard, Users, Receipt, Upload, Shield, Palette, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from '@/components/NavLink';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  LayoutDashboard,
-  Users,
-  Receipt,
-  Upload,
-  Shield,
-  Palette,
-  Sparkles,
-} from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
