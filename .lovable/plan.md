@@ -1,199 +1,243 @@
 
+# Plano: Reestruturação para Cobrança Única com Histórico de Faturas
 
-# Plano: Sistema de Faturas Mensais com Histórico Completo
+## Resumo da Mudança
 
-## Entendimento do Problema
+Atualmente temos **135 registros** na tabela `cobrancas` (45 clientes x 3 meses). A proposta é:
 
-### Modelo Atual (incorreto para seu caso)
-- Uma cobrança por cliente/proposta
-- Ao importar novo mês, **atualiza** a cobrança existente
-- Perde o histórico dos meses anteriores
+- **Uma cobrança por cliente/proposta** (voltamos aos 45 registros)
+- **Nova tabela `faturas`** para armazenar o histórico mensal
+- Na lista de cobranças, mostrar a **fatura mais antiga em aberto**
+- Modal popup para ver **todas as faturas** do cliente
 
-### Modelo Desejado
-- Múltiplas faturas por cliente/proposta (uma por mês)
-- Ao importar novo mês, **cria nova fatura**
-- Mantém histórico completo de pagamentos/inadimplência
+## Nova Estrutura de Dados
+
+```text
+COBRANCAS (tabela principal - 1 por cliente/proposta)
+├── id, cliente_id, numero_proposta
+├── valor_mensal (valor padrão da fatura)
+├── dia_vencimento (dia fixo do mês)
+├── mes_referencia (mês da primeira fatura - 2025-11)
+├── data_instalacao
+└── observacoes
+
+FATURAS (tabela de histórico - N por cobrança)
+├── id, cobranca_id (FK)
+├── mes_referencia (2025-11, 2025-12, 2026-01...)
+├── data_vencimento (calculada: dia + mês)
+├── valor
+├── status_id (FK status_pagamento)
+├── data_pagamento (quando foi pago)
+└── observacoes
+```
+
+## Fluxo Visual
+
+```text
+┌────────────────────────────────────────────────────────────────────┐
+│                    LISTA DE COBRANÇAS                              │
+├────────────────────────────────────────────────────────────────────┤
+│ Cliente          │ Proposta    │ Fatura Pendente │ Valor  │ Ação   │
+├────────────────────────────────────────────────────────────────────┤
+│ João Silva       │ 5100199972  │ 11/2025 (Atr)   │ R$ 150 │ [Ver]  │
+│ Maria Santos     │ 5100203092  │ 12/2025 (Atr)   │ R$ 200 │ [Ver]  │
+│ Pedro Costa      │ 5100204187  │ 01/2026 (Pend)  │ R$ 180 │ [Ver]  │
+└────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    │ Clica em "Ver"
+                                    ▼
+┌────────────────────────────────────────────────────────────────────┐
+│              MODAL: Histórico de Faturas                           │
+│              Cliente: João Silva - Proposta: 5100199972            │
+├────────────────────────────────────────────────────────────────────┤
+│ Mês       │ Vencimento  │ Valor   │ Status    │ Ação               │
+├────────────────────────────────────────────────────────────────────┤
+│ 11/2025   │ 27/11/2025  │ R$ 150  │ Atrasado  │ [Marcar Pago]      │
+│ 12/2025   │ 27/12/2025  │ R$ 150  │ Atrasado  │ [Marcar Pago]      │
+│ 01/2026   │ 27/01/2026  │ R$ 150  │ Pendente  │ [Marcar Pago]      │
+│ 02/2026   │ 27/02/2026  │ R$ 150  │ Pendente  │ [Marcar Pago]      │
+└────────────────────────────────────────────────────────────────────┘
+```
 
 ## Mudanças Necessárias
 
-### 1. Adicionar campo `mes_referencia` na tabela `cobrancas`
+### 1. Banco de Dados
 
-Este campo armazenará o mês/ano de referência da fatura (formato: YYYY-MM).
-
+**Criar tabela `faturas`:**
 ```sql
-ALTER TABLE cobrancas 
-ADD COLUMN mes_referencia VARCHAR(7);
-
--- Preencher baseado na data_vencimento existente
-UPDATE cobrancas 
-SET mes_referencia = TO_CHAR(data_vencimento, 'YYYY-MM');
+CREATE TABLE faturas (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cobranca_id UUID NOT NULL REFERENCES cobrancas(id) ON DELETE CASCADE,
+  mes_referencia VARCHAR(7) NOT NULL,
+  data_vencimento DATE NOT NULL,
+  valor NUMERIC NOT NULL DEFAULT 0,
+  status_id UUID REFERENCES status_pagamento(id),
+  data_pagamento DATE,
+  observacoes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(cobranca_id, mes_referencia)
+);
 ```
 
-### 2. Alterar lógica de importação
+**Migrar dados existentes:**
+- Consolidar cobranças duplicadas em uma por cliente/proposta
+- Mover dados mensais para a tabela `faturas`
 
-**Identificador único passa a ser: CPF + Proposta + Mês/Ano**
+**Atualizar tabela `cobrancas`:**
+- Remover `mes_referencia` (agora fica na fatura)
+- Manter `dia_vencimento` e `valor` como padrão mensal
 
-```text
-Antes (lógica atual):
-  Busca: CPF + Proposta
-  Se existe → UPDATE
-  Se não existe → INSERT
-
-Depois (nova lógica):
-  Busca: CPF + Proposta + Mês/Ano
-  Se existe no mesmo mês → UPDATE (reimportação)
-  Se não existe para esse mês → INSERT (nova fatura)
-```
-
-### 3. Criar faturas retroativas na primeira importação
-
-Ao importar a planilha de um novo cliente, podemos criar automaticamente as faturas dos meses anteriores (se desejado). Por exemplo:
-- Importa planilha 01/2026
-- Sistema cria faturas de 11/2025, 12/2025, 01/2026
-
-**Ou**: Fazer isso manualmente via script único para os dados atuais.
-
-### 4. Atualizar página de Cobranças
-
-Adicionar:
-- Filtro por mês de referência
-- Visualização do histórico de faturas por cliente
-- Indicador visual do mês
-
-### 5. Atualizar Edge Function
-
-Ajustar a lógica para considerar apenas faturas do mês atual ao atualizar status.
-
-## Arquivos a Modificar
+### 2. Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Migration SQL | Criar | Adicionar coluna `mes_referencia` |
-| `src/pages/Importar.tsx` | Editar | Nova lógica: CPF + Proposta + Mês |
-| `src/pages/Cobrancas.tsx` | Editar | Filtro por mês, exibir mês referência |
-| `supabase/functions/atualizar-status-cobrancas/index.ts` | Editar | Considerar mês atual |
-| Migration SQL | Criar | Script para criar faturas retroativas |
+| Migration SQL | Criar | Criar tabela `faturas` com RLS |
+| Migration SQL | Criar | Migrar dados existentes |
+| `src/types/database.ts` | Editar | Adicionar tipo `Fatura` |
+| `src/hooks/useFaturas.tsx` | Criar | Hook para CRUD de faturas |
+| `src/hooks/useCobrancas.tsx` | Editar | Ajustar queries para nova estrutura |
+| `src/pages/Cobrancas.tsx` | Editar | Mostrar fatura mais antiga, adicionar modal |
+| `src/components/FaturasModal.tsx` | Criar | Modal com histórico de faturas |
+| `src/pages/Importar.tsx` | Editar | Nova lógica de importação |
+| `supabase/functions/atualizar-status-cobrancas` | Editar | Atualizar faturas vencidas |
 
-## Nova Lógica de Importação
+### 3. Nova Lógica de Importação
 
 ```text
 Para cada linha da planilha:
 
 1. Extrair CPF, Proposta, Data Vencimento
 2. Calcular mes_referencia (ex: "2026-01")
-3. Buscar cobrança existente com:
-   - Mesmo CPF
-   - Mesma Proposta
-   - Mesmo mes_referencia
+
+3. Buscar COBRANÇA existente:
+   - Mesmo CPF + Mesma Proposta
    
-4. Se encontrou (mesmo mês):
-   → UPDATE (reimportação do mesmo mês)
-   → Atualiza valor, status, etc.
+4. Se COBRANÇA não existe:
+   → Criar cliente (se necessário)
+   → INSERT cobrança principal
+   → INSERT primeira fatura
+
+5. Se COBRANÇA existe:
+   → Buscar FATURA do mes_referencia
    
-5. Se não encontrou:
-   → INSERT (nova fatura do mês)
-   → Status = Pendente
+   5a. Se FATURA do mês não existe:
+       → INSERT nova fatura
+       
+   5b. Se FATURA do mês existe:
+       → UPDATE fatura (reimportação)
 ```
 
-## Fluxo Visual
+### 4. Modal de Histórico
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                Importar Planilha 01/2026                    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│   Para cada linha:                                          │
-│   CPF: 123.456.789-00 | Proposta: 5100199972                │
-│   Data Vencimento: 27/01/2026                               │
-│   → mes_referencia: 2026-01                                 │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│   Buscar: CPF + Proposta + 2026-01                          │
-│                                                             │
-│   ┌─────────────┐         ┌──────────────────────────────┐  │
-│   │ Existe?     │   NÃO   │ INSERT nova fatura           │  │
-│   │ (2026-01)   │────────▶│ mes_referencia = "2026-01"   │  │
-│   └─────────────┘         │ status = Pendente            │  │
-│         │ SIM             └──────────────────────────────┘  │
-│         ▼                                                   │
-│   ┌──────────────────────────────────────────────────────┐  │
-│   │ UPDATE (reimportação do mesmo mês)                   │  │
-│   │ Atualiza valor, mantém histórico                     │  │
-│   └──────────────────────────────────────────────────────┘  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+O modal exibirá:
+- Cabeçalho com nome do cliente e proposta
+- Lista de todas as faturas ordenadas por mês
+- Cada fatura com:
+  - Mês de referência
+  - Data de vencimento
+  - Valor
+  - Status (badge colorido)
+  - Botão para marcar como pago (abre seletor de data)
+- Totalizador: valor em aberto vs valor pago
 
-## Histórico de Faturas por Cliente
+### 5. Edge Function Atualizada
 
-```text
-Cliente: João Silva
-Proposta: 5100199972
-
-┌───────────────────────────────────────────────────────────────┐
-│  Mês      │ Vencimento │  Valor   │  Status                   │
-├───────────────────────────────────────────────────────────────┤
-│  11/2025  │ 27/11/2025 │ R$ 150   │ ⚫ Atrasado               │
-│  12/2025  │ 27/12/2025 │ R$ 150   │ ⚫ Atrasado               │
-│  01/2026  │ 27/01/2026 │ R$ 150   │ 🟡 Pendente (vence em 2d) │
-│  02/2026  │ 27/02/2026 │ R$ 150   │ 🟡 Pendente               │
-└───────────────────────────────────────────────────────────────┘
-```
-
-## Script para Dados Existentes
-
-Para os 45 clientes que já estão no banco com data 11/2025, precisamos criar as faturas dos meses 12/2025 e 01/2026.
-
-**Opção A**: Executar script SQL único
-
-```sql
--- Criar faturas de 12/2025 baseadas nas de 11/2025
-INSERT INTO cobrancas (
-  cliente_id, numero_proposta, valor, 
-  data_vencimento, dia_vencimento, 
-  mes_referencia, status_id
-)
-SELECT 
-  cliente_id, 
-  numero_proposta, 
-  valor,
-  data_vencimento + INTERVAL '1 month',
-  dia_vencimento,
-  '2025-12',
-  (SELECT id FROM status_pagamento WHERE nome = 'Atrasado')
-FROM cobrancas WHERE mes_referencia = '2025-11';
-
--- Repetir para 01/2026 (Pendente)
-```
-
-**Opção B**: Fazer via importação normal
-- Importar planilha 12/2025
-- Importar planilha 01/2026
-
-## Alterações na UI de Cobranças
-
-1. **Filtro por mês**: Dropdown para selecionar mês/ano
-2. **Coluna "Mês Ref"**: Mostrar o mês de referência na tabela
-3. **Visão por cliente**: Ao clicar no cliente, ver todas as faturas dele
+A função `atualizar-status-cobrancas` será ajustada para:
+- Buscar na tabela `faturas` (não mais em `cobrancas`)
+- Atualizar status para "Atrasado" apenas faturas vencidas
+- Ignorar faturas já pagas ou canceladas
 
 ## Comportamento Final
 
 | Cenário | Ação |
 |---------|------|
-| Importa planilha 01/2026, cliente novo | Cria cliente + fatura 01/2026 |
-| Importa planilha 01/2026, cliente existe, sem fatura 01/2026 | Cria fatura 01/2026 |
-| Importa planilha 01/2026, cliente existe, já tem fatura 01/2026 | Atualiza fatura existente |
-| Importa planilha 02/2026 | Cria novas faturas 02/2026 para todos |
+| Importa planilha, cliente novo | Cria cliente + cobrança + fatura do mês |
+| Importa planilha, cliente existe, mês novo | Cria fatura do mês |
+| Importa planilha, cliente existe, mesmo mês | Atualiza fatura existente |
+| Pagar fatura | Modal permite escolher qual fatura pagar |
+| Listar cobranças | Mostra 1 linha por cliente com fatura mais antiga pendente |
 
-## Resumo das Mudanças
+## Sequência de Implementação
 
-1. **Banco**: Adicionar `mes_referencia` (VARCHAR 7)
-2. **Importação**: Identificar por CPF + Proposta + Mês
-3. **UI**: Mostrar mês referência, filtrar por mês
-4. **Edge Function**: Atualizar apenas mês atual para Atrasado
-5. **Migração**: Script para criar faturas retroativas dos dados existentes
+1. Criar tabela `faturas` com RLS
+2. Migrar dados de `cobrancas` para `faturas`
+3. Atualizar tipos TypeScript e hooks
+4. Criar componente `FaturasModal`
+5. Atualizar página de Cobranças
+6. Atualizar lógica de Importação
+7. Atualizar Edge Function
+8. Testar fluxo completo
+
+## Detalhes Técnicos
+
+### Tipos TypeScript
+
+```typescript
+// Novo tipo para Fatura
+export interface Fatura {
+  id: string;
+  cobranca_id: string;
+  mes_referencia: string;
+  data_vencimento: string;
+  valor: number;
+  status_id: string | null;
+  data_pagamento: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined
+  status?: StatusPagamento;
+}
+
+// Cobrança atualizada
+export interface Cobranca {
+  id: string;
+  cliente_id: string;
+  numero_proposta: string | null;
+  valor: number; // valor mensal padrão
+  dia_vencimento: number | null;
+  data_instalacao: string | null;
+  observacoes: string | null;
+  // ... outros campos
+  cliente?: Cliente;
+  faturas?: Fatura[]; // relacionamento
+  fatura_pendente?: Fatura; // fatura mais antiga em aberto
+}
+```
+
+### Query para Lista de Cobranças
+
+A query buscará cada cobrança com a fatura mais antiga não paga:
+
+```sql
+SELECT 
+  c.*,
+  cliente:clientes(*),
+  faturas:faturas(
+    *,
+    status:status_pagamento(*)
+  )
+FROM cobrancas c
+ORDER BY c.cliente.nome
+```
+
+No frontend, filtraremos para mostrar apenas a fatura mais antiga pendente.
+
+### RLS para tabela `faturas`
+
+```sql
+-- Mesmas políticas da cobrancas
+CREATE POLICY "Authenticated users can view faturas"
+ON faturas FOR SELECT USING (is_authenticated_user());
+
+CREATE POLICY "Authenticated users can insert faturas"
+ON faturas FOR INSERT WITH CHECK (is_authenticated_user());
+
+CREATE POLICY "Authenticated users can update faturas"
+ON faturas FOR UPDATE USING (is_authenticated_user());
+
+CREATE POLICY "Admin can delete faturas"
+ON faturas FOR DELETE USING (is_admin());
+```
 
