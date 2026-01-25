@@ -1,12 +1,11 @@
 import { useAuth } from '@/hooks/useAuth';
-import { useDashboardMetrics, useCobrancas } from '@/hooks/useCobrancas';
+import { useDashboardMetrics, useCobrancas, useMonthlyMetrics } from '@/hooks/useCobrancas';
 import { WelcomeHeader } from '@/components/dashboard/WelcomeHeader';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 import { OverviewChart } from '@/components/dashboard/OverviewChart';
 import { CustomersChart } from '@/components/dashboard/CustomersChart';
 import { RecentCharges } from '@/components/dashboard/RecentCharges';
 import { Receipt, CheckCircle, Clock, AlertTriangle } from 'lucide-react';
-import { addDays } from 'date-fns';
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {
@@ -19,10 +18,7 @@ export default function Dashboard() {
   const { profile } = useAuth();
   const { data: metrics, isLoading: metricsLoading } = useDashboardMetrics();
   const { data: cobrancas, isLoading: cobrancasLoading } = useCobrancas();
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const in7Days = addDays(today, 7);
+  const { data: monthlyData, isLoading: monthlyLoading } = useMonthlyMetrics();
 
   // Get recent charges (last 5)
   const recentCharges = cobrancas?.slice(0, 5);
@@ -49,35 +45,31 @@ export default function Dashboard() {
           value={metricsLoading ? '...' : formatCurrency(metrics?.valorTotal ?? 0)}
           icon={<Receipt className="h-5 w-5" />}
           variant="violet"
-          change={{ value: 12, type: 'increase' }}
         />
         <MetricCard
           title="Valor Recebido"
           value={metricsLoading ? '...' : formatCurrency(metrics?.valorPagos ?? 0)}
           icon={<CheckCircle className="h-5 w-5" />}
           variant="coral"
-          change={{ value: 8, type: 'increase' }}
         />
         <MetricCard
           title="Valor Pendente"
           value={metricsLoading ? '...' : formatCurrency(metrics?.valorPendentes ?? 0)}
           icon={<Clock className="h-5 w-5" />}
           variant="pink"
-          change={{ value: 5, type: 'decrease' }}
         />
         <MetricCard
           title="Valor Atrasado"
           value={metricsLoading ? '...' : formatCurrency(metrics?.valorAtrasados ?? 0)}
           icon={<AlertTriangle className="h-5 w-5" />}
           variant="violet"
-          change={{ value: 3, type: 'decrease' }}
         />
       </div>
 
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <OverviewChart />
-        <CustomersChart data={pieData} />
+        <OverviewChart data={monthlyData} isLoading={monthlyLoading} />
+        <CustomersChart data={pieData} isLoading={metricsLoading} />
       </div>
 
       {/* Recent Charges */}
