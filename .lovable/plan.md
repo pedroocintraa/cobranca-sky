@@ -1,177 +1,199 @@
 
 
-# Plano: Sistema de Cobranças Mensais Recorrentes com Atualização Automática de Status
+# Plano: Sistema de Faturas Mensais com Histórico Completo
 
-## Entendimento do Cenário
+## Entendimento do Problema
 
-Atualmente:
-- Cobranças têm uma data de vencimento fixa (ex: 27/11/2025)
-- O status precisa ser atualizado manualmente
+### Modelo Atual (incorreto para seu caso)
+- Uma cobrança por cliente/proposta
+- Ao importar novo mês, **atualiza** a cobrança existente
+- Perde o histórico dos meses anteriores
 
-O que você precisa:
-- Cliente tem um **dia de vencimento** (ex: dia 27)
-- Todo mês ele tem uma cobrança que vence nesse dia
-- O status deve mudar automaticamente:
-  - **Pendente**: quando o mês atual chega
-  - **Atrasado**: quando passa do dia de vencimento sem pagamento
-
-## Abordagem Proposta
-
-Vou criar um **job automático** que roda diariamente para:
-1. Verificar todas as cobranças
-2. Atualizar status para "Atrasado" se a data de vencimento passou
-3. Criar nova cobrança do próximo mês quando o mês atual terminar (opcional)
+### Modelo Desejado
+- Múltiplas faturas por cliente/proposta (uma por mês)
+- Ao importar novo mês, **cria nova fatura**
+- Mantém histórico completo de pagamentos/inadimplência
 
 ## Mudanças Necessárias
 
-### 1. Adicionar campo `dia_vencimento` na tabela `cobrancas`
+### 1. Adicionar campo `mes_referencia` na tabela `cobrancas`
 
-Este campo armazenará apenas o **dia** do mês (1-31) para facilitar o cálculo mensal.
+Este campo armazenará o mês/ano de referência da fatura (formato: YYYY-MM).
 
 ```sql
 ALTER TABLE cobrancas 
-ADD COLUMN dia_vencimento INTEGER;
+ADD COLUMN mes_referencia VARCHAR(7);
 
--- Preencher automaticamente baseado na data_vencimento existente
+-- Preencher baseado na data_vencimento existente
 UPDATE cobrancas 
-SET dia_vencimento = EXTRACT(DAY FROM data_vencimento);
+SET mes_referencia = TO_CHAR(data_vencimento, 'YYYY-MM');
 ```
 
-### 2. Criar Edge Function para atualização automática de status
+### 2. Alterar lógica de importação
 
-**Arquivo**: `supabase/functions/atualizar-status-cobrancas/index.ts`
+**Identificador único passa a ser: CPF + Proposta + Mês/Ano**
 
 ```text
-Lógica:
-1. Buscar todas as cobranças que NÃO estão "Pago" ou "Cancelado"
-2. Para cada cobrança:
-   - Se data_vencimento < hoje → marcar como "Atrasado"
-   - Se data_vencimento = hoje → marcar como "Pendente" (se não tiver status)
-3. Registrar log da execução
+Antes (lógica atual):
+  Busca: CPF + Proposta
+  Se existe → UPDATE
+  Se não existe → INSERT
+
+Depois (nova lógica):
+  Busca: CPF + Proposta + Mês/Ano
+  Se existe no mesmo mês → UPDATE (reimportação)
+  Se não existe para esse mês → INSERT (nova fatura)
 ```
 
-### 3. Agendar execução diária via CRON
+### 3. Criar faturas retroativas na primeira importação
 
-```sql
--- Executar todo dia às 00:05
-SELECT cron.schedule(
-  'atualizar-status-cobrancas',
-  '5 0 * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://pjwnkaoeiaylbhmmdbec.supabase.co/functions/v1/atualizar-status-cobrancas',
-    headers := '{"Authorization": "Bearer <anon_key>"}'::jsonb
-  ) AS request_id;
-  $$
-);
-```
+Ao importar a planilha de um novo cliente, podemos criar automaticamente as faturas dos meses anteriores (se desejado). Por exemplo:
+- Importa planilha 01/2026
+- Sistema cria faturas de 11/2025, 12/2025, 01/2026
 
-### 4. Opção: Gerar cobranças do próximo mês automaticamente
+**Ou**: Fazer isso manualmente via script único para os dados atuais.
 
-```text
-Quando o mês termina:
-1. Buscar todas as cobranças do mês atual
-2. Criar cópia para o próximo mês com:
-   - Mesmo cliente_id
-   - Mesmo numero_proposta
-   - Mesmo dia_vencimento
-   - Status = Pendente
-   - data_vencimento = dia_vencimento do próximo mês
-```
+### 4. Atualizar página de Cobranças
 
-## Fluxo Automático
+Adicionar:
+- Filtro por mês de referência
+- Visualização do histórico de faturas por cliente
+- Indicador visual do mês
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│                     CRON (Todo dia 00:05)                   │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Edge Function: atualizar-status                │
-│                                                             │
-│  1. Buscar cobranças com status != Pago/Cancelado           │
-│  2. Para cada cobrança:                                     │
-│     ┌─────────────────────────────────────────────────────┐ │
-│     │ data_vencimento < hoje?                             │ │
-│     │   SIM → status = "Atrasado"                         │ │
-│     │   NÃO → mantém status atual                         │ │
-│     └─────────────────────────────────────────────────────┘ │
-│  3. Log: "X cobranças atualizadas para Atrasado"            │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
+### 5. Atualizar Edge Function
 
-## Fluxo Mensal (Importação)
+Ajustar a lógica para considerar apenas faturas do mês atual ao atualizar status.
 
-```text
-┌─────────────────────────────────────────────────────────────┐
-│              Upload Planilha (Mensal)                       │
-│              Ex: Planilha 01/2026                           │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│         Identificar por CPF + Nº Proposta                   │
-│                                                             │
-│  ┌────────────────┐        ┌──────────────────────────────┐ │
-│  │ Já existe?     │   NÃO  │ Criar nova cobrança          │ │
-│  │ (mesmo CPF +   │───────▶│ - data_vencimento: 27/01/26  │ │
-│  │  proposta)     │        │ - dia_vencimento: 27         │ │
-│  └────────────────┘        │ - status: Pendente           │ │
-│         │ SIM              └──────────────────────────────┘ │
-│         ▼                                                   │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │ Atualizar data_vencimento para novo mês              │   │
-│  │ - data_vencimento: 27/01/2026                        │   │
-│  │ - Manter valor, proposta, cliente                    │   │
-│  │ - Reset status para "Pendente"                       │   │
-│  └──────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Arquivos a Criar/Modificar
+## Arquivos a Modificar
 
 | Arquivo | Ação | Descrição |
 |---------|------|-----------|
-| Migration SQL | Criar | Adicionar coluna `dia_vencimento` |
-| `supabase/functions/atualizar-status-cobrancas/index.ts` | Criar | Edge function para atualização automática |
-| `supabase/config.toml` | Editar | Registrar nova função |
-| `src/pages/Importar.tsx` | Editar | Resetar status para Pendente ao atualizar |
-| Migration SQL | Criar | Configurar CRON job |
+| Migration SQL | Criar | Adicionar coluna `mes_referencia` |
+| `src/pages/Importar.tsx` | Editar | Nova lógica: CPF + Proposta + Mês |
+| `src/pages/Cobrancas.tsx` | Editar | Filtro por mês, exibir mês referência |
+| `supabase/functions/atualizar-status-cobrancas/index.ts` | Editar | Considerar mês atual |
+| Migration SQL | Criar | Script para criar faturas retroativas |
 
-## Comportamento Esperado
+## Nova Lógica de Importação
 
-| Situação | Status Atual | Ação Automática |
-|----------|--------------|-----------------|
-| Vencimento no futuro | Pendente | Nada |
-| Vencimento hoje | Pendente | Nada |
-| Vencimento ontem | Pendente | → Atrasado |
-| Já está Pago | Pago | Nada |
-| Já está Cancelado | Cancelado | Nada |
-| Nova importação (mesmo CPF+Proposta) | Atrasado | → Pendente (novo mês) |
+```text
+Para cada linha da planilha:
 
-## Exemplo Prático
+1. Extrair CPF, Proposta, Data Vencimento
+2. Calcular mes_referencia (ex: "2026-01")
+3. Buscar cobrança existente com:
+   - Mesmo CPF
+   - Mesma Proposta
+   - Mesmo mes_referencia
+   
+4. Se encontrou (mesmo mês):
+   → UPDATE (reimportação do mesmo mês)
+   → Atualiza valor, status, etc.
+   
+5. Se não encontrou:
+   → INSERT (nova fatura do mês)
+   → Status = Pendente
+```
+
+## Fluxo Visual
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                Importar Planilha 01/2026                    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│   Para cada linha:                                          │
+│   CPF: 123.456.789-00 | Proposta: 5100199972                │
+│   Data Vencimento: 27/01/2026                               │
+│   → mes_referencia: 2026-01                                 │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│   Buscar: CPF + Proposta + 2026-01                          │
+│                                                             │
+│   ┌─────────────┐         ┌──────────────────────────────┐  │
+│   │ Existe?     │   NÃO   │ INSERT nova fatura           │  │
+│   │ (2026-01)   │────────▶│ mes_referencia = "2026-01"   │  │
+│   └─────────────┘         │ status = Pendente            │  │
+│         │ SIM             └──────────────────────────────┘  │
+│         ▼                                                   │
+│   ┌──────────────────────────────────────────────────────┐  │
+│   │ UPDATE (reimportação do mesmo mês)                   │  │
+│   │ Atualiza valor, mantém histórico                     │  │
+│   └──────────────────────────────────────────────────────┘  │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Histórico de Faturas por Cliente
 
 ```text
 Cliente: João Silva
-CPF: 123.456.789-00
 Proposta: 5100199972
-Dia vencimento: 27
 
-Timeline:
-- 27/11/2025: Cobrança criada → Status: Pendente
-- 28/11/2025: CRON roda → Status: Atrasado (passou do dia 27)
-- 15/12/2025: Importa planilha 12/2025 → Status: Pendente (nova data: 27/12/2025)
-- 28/12/2025: CRON roda → Status: Atrasado
-- E assim continua...
+┌───────────────────────────────────────────────────────────────┐
+│  Mês      │ Vencimento │  Valor   │  Status                   │
+├───────────────────────────────────────────────────────────────┤
+│  11/2025  │ 27/11/2025 │ R$ 150   │ ⚫ Atrasado               │
+│  12/2025  │ 27/12/2025 │ R$ 150   │ ⚫ Atrasado               │
+│  01/2026  │ 27/01/2026 │ R$ 150   │ 🟡 Pendente (vence em 2d) │
+│  02/2026  │ 27/02/2026 │ R$ 150   │ 🟡 Pendente               │
+└───────────────────────────────────────────────────────────────┘
 ```
 
-## Resultado Final
+## Script para Dados Existentes
 
-- Status atualiza automaticamente todos os dias
-- Importação mensal atualiza a data de vencimento
-- Histórico de mudanças de status é mantido (trigger existente)
-- Cobranças pagas ou canceladas não são afetadas
+Para os 45 clientes que já estão no banco com data 11/2025, precisamos criar as faturas dos meses 12/2025 e 01/2026.
+
+**Opção A**: Executar script SQL único
+
+```sql
+-- Criar faturas de 12/2025 baseadas nas de 11/2025
+INSERT INTO cobrancas (
+  cliente_id, numero_proposta, valor, 
+  data_vencimento, dia_vencimento, 
+  mes_referencia, status_id
+)
+SELECT 
+  cliente_id, 
+  numero_proposta, 
+  valor,
+  data_vencimento + INTERVAL '1 month',
+  dia_vencimento,
+  '2025-12',
+  (SELECT id FROM status_pagamento WHERE nome = 'Atrasado')
+FROM cobrancas WHERE mes_referencia = '2025-11';
+
+-- Repetir para 01/2026 (Pendente)
+```
+
+**Opção B**: Fazer via importação normal
+- Importar planilha 12/2025
+- Importar planilha 01/2026
+
+## Alterações na UI de Cobranças
+
+1. **Filtro por mês**: Dropdown para selecionar mês/ano
+2. **Coluna "Mês Ref"**: Mostrar o mês de referência na tabela
+3. **Visão por cliente**: Ao clicar no cliente, ver todas as faturas dele
+
+## Comportamento Final
+
+| Cenário | Ação |
+|---------|------|
+| Importa planilha 01/2026, cliente novo | Cria cliente + fatura 01/2026 |
+| Importa planilha 01/2026, cliente existe, sem fatura 01/2026 | Cria fatura 01/2026 |
+| Importa planilha 01/2026, cliente existe, já tem fatura 01/2026 | Atualiza fatura existente |
+| Importa planilha 02/2026 | Cria novas faturas 02/2026 para todos |
+
+## Resumo das Mudanças
+
+1. **Banco**: Adicionar `mes_referencia` (VARCHAR 7)
+2. **Importação**: Identificar por CPF + Proposta + Mês
+3. **UI**: Mostrar mês referência, filtrar por mês
+4. **Edge Function**: Atualizar apenas mês atual para Atrasado
+5. **Migração**: Script para criar faturas retroativas dos dados existentes
 
