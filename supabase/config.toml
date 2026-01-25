@@ -1,1 +1,4 @@
 project_id = "pjwnkaoeiaylbhmmdbec"
+
+[functions.atualizar-status-cobrancas]
+verify_jwt = false
