@@ -16,6 +16,7 @@ import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen } from 'lucide-rea
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from '@/components/NavLink';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Users,
@@ -59,14 +60,39 @@ export default function MainLayout() {
       .slice(0, 2);
   };
 
+  const sidebarVariants = {
+    expanded: { width: 240, opacity: 1 },
+    collapsed: { width: 64, opacity: 1 },
+  };
+
   return (
     <div className="flex min-h-screen w-full bg-background">
       {/* Sidebar - Desktop (toggle between Mini and Expanded) */}
-      {sidebarCollapsed ? (
-        <MiniSidebar className="hidden lg:flex" />
-      ) : (
-        <ExpandedSidebar className="hidden lg:flex" />
-      )}
+      <AnimatePresence mode="wait" initial={false}>
+        {sidebarCollapsed ? (
+          <motion.div
+            key="mini"
+            initial={{ width: 240, opacity: 0 }}
+            animate={{ width: 64, opacity: 1 }}
+            exit={{ width: 240, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="hidden lg:block"
+          >
+            <MiniSidebar className="h-full" />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="expanded"
+            initial={{ width: 64, opacity: 0 }}
+            animate={{ width: 240, opacity: 1 }}
+            exit={{ width: 64, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeInOut' }}
+            className="hidden lg:block"
+          >
+            <ExpandedSidebar className="h-full" />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col min-w-0">
