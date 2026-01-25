@@ -43,6 +43,34 @@ export function useCobranca(id: string) {
   });
 }
 
+export function useMonthlyMetrics() {
+  return useQuery({
+    queryKey: ['monthly-metrics'],
+    queryFn: async () => {
+      const currentYear = new Date().getFullYear();
+      const startDate = `${currentYear}-01-01`;
+      const endDate = `${currentYear}-12-31`;
+
+      const { data, error } = await supabase
+        .from('cobrancas')
+        .select('valor, data_vencimento')
+        .gte('data_vencimento', startDate)
+        .lte('data_vencimento', endDate);
+
+      if (error) throw error;
+
+      const monthlyData = Array(12).fill(0);
+      data?.forEach((c) => {
+        const month = new Date(c.data_vencimento).getMonth();
+        monthlyData[month] += Number(c.valor) || 0;
+      });
+
+      const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+      return months.map((month, i) => ({ month, value: monthlyData[i] }));
+    },
+  });
+}
+
 export function useDashboardMetrics() {
   return useQuery({
     queryKey: ['dashboard-metrics'],
