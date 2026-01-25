@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Loader2, Leaf } from 'lucide-react';
+import { Loader2, Sparkles } from 'lucide-react';
 
 const loginSchema = z.object({
   email: z.string().email('Email inválido').max(255, 'Email muito longo'),
@@ -110,26 +110,30 @@ export default function Auth() {
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
+      {/* Logo */}
       <div className="mb-8 flex items-center gap-3">
-        <Leaf className="h-10 w-10 text-primary" />
+        <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-violet">
+          <Sparkles className="h-6 w-6 text-white" />
+        </div>
         <div>
           <h1 className="text-xl font-semibold text-foreground">CRM Cobrança</h1>
           <p className="text-sm text-muted-foreground">Sistema de gestão</p>
         </div>
       </div>
 
-      <Card className="w-full max-w-md shadow-lg">
+      {/* Card */}
+      <Card className="w-full max-w-md shadow-xl border-border/50">
         <CardHeader className="text-center pb-2">
-          <CardTitle className="text-lg font-semibold">Acesse sua conta</CardTitle>
+          <CardTitle className="text-xl font-semibold">Acesse sua conta</CardTitle>
           <CardDescription className="text-muted-foreground">
             Entre com suas credenciais ou crie uma nova conta
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="login" className="font-medium">Entrar</TabsTrigger>
-              <TabsTrigger value="signup" className="font-medium">Cadastrar</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-2 mb-6 h-11">
+              <TabsTrigger value="login" className="font-medium text-sm">Entrar</TabsTrigger>
+              <TabsTrigger value="signup" className="font-medium text-sm">Cadastrar</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="mt-0">
@@ -140,7 +144,7 @@ export default function Auth() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Email</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Email</FormLabel>
                         <FormControl>
                           <Input 
                             type="email" 
@@ -159,7 +163,7 @@ export default function Auth() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Senha</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
@@ -189,7 +193,7 @@ export default function Auth() {
                     name="nome"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Nome completo</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Nome completo</FormLabel>
                         <FormControl>
                           <Input 
                             placeholder="Seu nome" 
@@ -207,7 +211,7 @@ export default function Auth() {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Email</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Email</FormLabel>
                         <FormControl>
                           <Input 
                             type="email" 
@@ -226,7 +230,7 @@ export default function Auth() {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Senha</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
@@ -245,7 +249,7 @@ export default function Auth() {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-foreground">Confirmar senha</FormLabel>
+                        <FormLabel className="text-foreground font-medium">Confirmar senha</FormLabel>
                         <FormControl>
                           <Input 
                             type="password" 
