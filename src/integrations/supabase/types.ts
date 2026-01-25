@@ -92,6 +92,7 @@ export type Database = {
           created_by: string | null
           data_instalacao: string | null
           data_vencimento: string
+          dia_vencimento: number | null
           id: string
           numero_proposta: string | null
           observacoes: string | null
@@ -106,6 +107,7 @@ export type Database = {
           created_by?: string | null
           data_instalacao?: string | null
           data_vencimento: string
+          dia_vencimento?: number | null
           id?: string
           numero_proposta?: string | null
           observacoes?: string | null
@@ -120,6 +122,7 @@ export type Database = {
           created_by?: string | null
           data_instalacao?: string | null
           data_vencimento?: string
+          dia_vencimento?: number | null
           id?: string
           numero_proposta?: string | null
           observacoes?: string | null

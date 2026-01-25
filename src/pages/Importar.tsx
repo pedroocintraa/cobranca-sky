@@ -298,15 +298,25 @@ export default function Importar() {
           (c) => c.cliente?.cpf === cpf && c.numero_proposta === numeroProposta
         );
 
+        // Extrair dia do vencimento para o campo dia_vencimento
+        const diaVencimento = dataVencimento ? parseInt(dataVencimento.split('-')[2], 10) : null;
+
+        // Buscar status "Pendente" para resetar ao atualizar
+        const statusPendente = statusList?.find(
+          (s) => s.nome.toLowerCase() === 'pendente'
+        );
+
         if (cobrancaExistente) {
           // UPDATE - atualizar cobrança existente
+          // Resetar status para "Pendente" ao importar novo mês
           const { error: updateError } = await supabase
             .from('cobrancas')
             .update({
               valor,
               data_instalacao: dataInstalacao,
               data_vencimento: dataVencimento,
-              status_id: statusId,
+              dia_vencimento: diaVencimento,
+              status_id: statusPendente?.id || statusId || null, // Reset para Pendente
               updated_by: user?.id || null,
             })
             .eq('id', cobrancaExistente.id);
@@ -325,6 +335,7 @@ export default function Importar() {
             valor,
             data_instalacao: dataInstalacao,
             data_vencimento: dataVencimento,
+            dia_vencimento: diaVencimento,
             status_id: statusId,
             created_by: user?.id || null,
             updated_by: user?.id || null,
