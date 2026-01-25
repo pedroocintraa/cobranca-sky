@@ -228,10 +228,10 @@ export default function Importar() {
     const results = { success: 0, errors: 0, updated: 0 };
     const errorDetails: { linha: number; erro: string }[] = [];
 
-    // Buscar cobranças existentes com CPF do cliente
+    // Buscar cobranças existentes com CPF do cliente e mes_referencia
     const { data: cobrancasExistentes } = await supabase
       .from('cobrancas')
-      .select('id, numero_proposta, cliente:clientes(cpf)');
+      .select('id, numero_proposta, mes_referencia, status_id, cliente:clientes(cpf)');
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -293,22 +293,27 @@ export default function Importar() {
           statusId = matchedStatus?.id || null;
         }
 
-        // Verificar se cobrança já existe (CPF + Proposta)
-        const cobrancaExistente = cobrancasExistentes?.find(
-          (c) => c.cliente?.cpf === cpf && c.numero_proposta === numeroProposta
-        );
-
         // Extrair dia do vencimento para o campo dia_vencimento
         const diaVencimento = dataVencimento ? parseInt(dataVencimento.split('-')[2], 10) : null;
 
-        // Buscar status "Pendente" para resetar ao atualizar
+        // Calcular mes_referencia a partir da data de vencimento (formato: YYYY-MM)
+        const mesReferencia = dataVencimento ? dataVencimento.substring(0, 7) : null;
+
+        // Verificar se cobrança já existe (CPF + Proposta + mes_referencia)
+        // Nova lógica: cada mês é uma fatura separada
+        const cobrancaExistente = cobrancasExistentes?.find(
+          (c) => c.cliente?.cpf === cpf && 
+                 c.numero_proposta === numeroProposta && 
+                 c.mes_referencia === mesReferencia
+        );
+
+        // Buscar status "Pendente" para novas faturas
         const statusPendente = statusList?.find(
           (s) => s.nome.toLowerCase() === 'pendente'
         );
 
         if (cobrancaExistente) {
-          // UPDATE - atualizar cobrança existente
-          // Resetar status para "Pendente" ao importar novo mês
+          // UPDATE - reimportação do mesmo mês (atualiza dados existentes)
           const { error: updateError } = await supabase
             .from('cobrancas')
             .update({
@@ -316,7 +321,7 @@ export default function Importar() {
               data_instalacao: dataInstalacao,
               data_vencimento: dataVencimento,
               dia_vencimento: diaVencimento,
-              status_id: statusPendente?.id || statusId || null, // Reset para Pendente
+              status_id: statusId || cobrancaExistente.status_id, // Mantém status atual se não informado
               updated_by: user?.id || null,
             })
             .eq('id', cobrancaExistente.id);
@@ -328,7 +333,7 @@ export default function Importar() {
             results.updated++;
           }
         } else {
-          // INSERT - criar nova cobrança
+          // INSERT - nova fatura do mês (CPF + Proposta + mês diferente)
           const { error: cobrancaError } = await supabase.from('cobrancas').insert([{
             cliente_id: clienteId,
             numero_proposta: numeroProposta,
@@ -336,7 +341,8 @@ export default function Importar() {
             data_instalacao: dataInstalacao,
             data_vencimento: dataVencimento,
             dia_vencimento: diaVencimento,
-            status_id: statusId,
+            mes_referencia: mesReferencia,
+            status_id: statusPendente?.id || statusId || null,
             created_by: user?.id || null,
             updated_by: user?.id || null,
           }]);

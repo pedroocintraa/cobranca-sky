@@ -83,6 +83,10 @@ export default function Cobrancas() {
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [mesFilter, setMesFilter] = useState<string>('all');
+
+  // Extrair meses únicos das cobranças para o filtro
+  const mesesDisponiveis = [...new Set(cobrancas?.map(c => c.mes_referencia).filter(Boolean) as string[])].sort().reverse();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCobranca, setEditingCobranca] = useState<Cobranca | null>(null);
   const [deletingCobranca, setDeletingCobranca] = useState<Cobranca | null>(null);
@@ -115,7 +119,11 @@ export default function Cobrancas() {
         !cobranca.status?.nome?.toLowerCase().includes('cancelado') &&
         isBefore(new Date(cobranca.data_vencimento), today));
 
-    return matchesSearch && matchesStatus;
+    const matchesMes =
+      mesFilter === 'all' ||
+      cobranca.mes_referencia === mesFilter;
+
+    return matchesSearch && matchesStatus && matchesMes;
   });
 
   const openCreateDialog = () => {
@@ -147,12 +155,18 @@ export default function Cobrancas() {
   const handleSubmit = async (data: CobrancaFormData) => {
     const valorNumerico = parseFloat(data.valor.replace(/[^\d,.-]/g, '').replace(',', '.'));
 
+    const dataVencimentoFormatted = format(data.data_vencimento, 'yyyy-MM-dd');
+    const mesReferencia = dataVencimentoFormatted.substring(0, 7);
+    const diaVencimento = data.data_vencimento.getDate();
+
     const payload = {
       cliente_id: data.cliente_id,
       numero_proposta: data.numero_proposta || null,
       valor: valorNumerico,
       data_instalacao: data.data_instalacao ? format(data.data_instalacao, 'yyyy-MM-dd') : null,
-      data_vencimento: format(data.data_vencimento, 'yyyy-MM-dd'),
+      data_vencimento: dataVencimentoFormatted,
+      dia_vencimento: diaVencimento,
+      mes_referencia: mesReferencia,
       status_id: data.status_id || null,
       observacoes: data.observacoes || null,
     };
@@ -468,13 +482,31 @@ export default function Cobrancas() {
                   className="pl-9 sm:w-64"
                 />
               </div>
+              <Select value={mesFilter} onValueChange={setMesFilter}>
+                <SelectTrigger className="w-full sm:w-36">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Mês" />
+                </SelectTrigger>
+                <SelectContent className="bg-popover">
+                  <SelectItem value="all">Todos os meses</SelectItem>
+                  {mesesDisponiveis.map((mes) => {
+                    const [ano, mesNum] = mes.split('-');
+                    const mesLabel = format(new Date(parseInt(ano), parseInt(mesNum) - 1, 1), 'MMM/yyyy', { locale: ptBR });
+                    return (
+                      <SelectItem key={mes} value={mes}>
+                        {mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-full sm:w-40">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent className="bg-popover">
-                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="all">Todos status</SelectItem>
                   <SelectItem value="atrasado">Atrasados</SelectItem>
                   {statusList?.map((status) => (
                     <SelectItem key={status.id} value={status.id}>
@@ -500,6 +532,7 @@ export default function Cobrancas() {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead className="hidden md:table-cell">Proposta</TableHead>
+                    <TableHead className="hidden lg:table-cell">Mês Ref.</TableHead>
                     <TableHead>Vencimento</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead>Status</TableHead>
@@ -519,6 +552,17 @@ export default function Cobrancas() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         {cobranca.numero_proposta || '-'}
+                      </TableCell>
+                      <TableCell className="hidden lg:table-cell">
+                        {cobranca.mes_referencia ? (
+                          <Badge variant="outline" className="font-normal">
+                            {(() => {
+                              const [ano, mesNum] = cobranca.mes_referencia.split('-');
+                              const mesLabel = format(new Date(parseInt(ano), parseInt(mesNum) - 1, 1), 'MMM/yy', { locale: ptBR });
+                              return mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
+                            })()}
+                          </Badge>
+                        ) : '-'}
                       </TableCell>
                       <TableCell>
                         {format(new Date(cobranca.data_vencimento), 'dd/MM/yyyy', {

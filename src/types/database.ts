@@ -44,6 +44,8 @@ export interface Cobranca {
   valor: number;
   data_instalacao: string | null;
   data_vencimento: string;
+  dia_vencimento: number | null;
+  mes_referencia: string | null;
   status_id: string | null;
   observacoes: string | null;
   created_by: string | null;

@@ -94,6 +94,7 @@ export type Database = {
           data_vencimento: string
           dia_vencimento: number | null
           id: string
+          mes_referencia: string | null
           numero_proposta: string | null
           observacoes: string | null
           status_id: string | null
@@ -109,6 +110,7 @@ export type Database = {
           data_vencimento: string
           dia_vencimento?: number | null
           id?: string
+          mes_referencia?: string | null
           numero_proposta?: string | null
           observacoes?: string | null
           status_id?: string | null
@@ -124,6 +126,7 @@ export type Database = {
           data_vencimento?: string
           dia_vencimento?: number | null
           id?: string
+          mes_referencia?: string | null
           numero_proposta?: string | null
           observacoes?: string | null
           status_id?: string | null
