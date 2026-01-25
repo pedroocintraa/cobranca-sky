@@ -1,117 +1,109 @@
 
-# CRM de Cobrança - Plano de Implementação
+# Plano de Redesign - Tema Verdant Profissional
 
-## Resumo
-Sistema completo de gestão de cobranças com autenticação, controle de acesso por níveis (Admin/Operador), upload de planilhas Excel/CSV, monitoramento visual de vencimentos e status personalizáveis.
-
----
-
-## Fase 1: Fundação e Autenticação
-
-### Configuração do Banco de Dados (Supabase)
-- Tabelas principais: clientes, cobranças, status_pagamento (personalizável), user_roles
-- Sistema de autenticação com dois níveis de acesso: Admin e Operador
-- Políticas de segurança (RLS) para proteção dos dados
-
-### Página de Login/Cadastro
-- Tela de autenticação com email e senha
-- Design clean seguindo as diretrizes visuais (azul #0056b3, Roboto, cantos arredondados 10px)
-- Redirecionamento automático após login
+## Problema Identificado
+O tema atual usa um azul (#0056b3) e não o tema Verdant (verde) que você selecionou. Além disso, o layout precisa de refinamentos para ter uma aparência mais clean e profissional.
 
 ---
 
-## Fase 2: Dashboard Principal
+## O que é o Tema Verdant?
+O Verdant é um tema baseado em tons de verde, transmitindo profissionalismo, confiança e modernidade. Vamos aplicar:
 
-### Visão Geral das Cobranças
-- Cards com métricas: total de cobranças, valores a receber, atrasados, pagos
-- Indicadores visuais de vencimentos (cores por status: verde/amarelo/vermelho)
-- Filtros rápidos por status e período
-
-### Tabela de Cobranças
-- Listagem com: nome, CPF, telefone, proposta, data instalação, vencimento, status
-- Ordenação por colunas
-- Busca por nome, CPF ou número da proposta
-- Indicadores visuais de urgência (ícones, cores)
+- **Cor primária**: Verde profissional (#16a34a / tons de emerald)
+- **Backgrounds**: Cinzas neutros e brancos limpos
+- **Tipografia**: Manter Roboto, mas com pesos mais refinados
+- **Espaçamentos**: Mais generosos para respiração visual
+- **Sombras**: Sutis e elegantes
 
 ---
 
-## Fase 3: Gestão de Clientes e Cobranças
+## Mudanças Planejadas
 
-### Cadastro e Edição
-- Formulário completo: nome, CPF, telefone, número da proposta, data da instalação, data de vencimento, status
-- Validação de campos (CPF, telefone)
-- Edição inline ou via modal
+### 1. Paleta de Cores (index.css)
+Substituir o azul por verde profissional:
 
-### Status Personalizáveis
-- Área para Admin criar/editar/excluir status de pagamento
-- Definição de cor para cada status
-- Ordenação dos status
+| Elemento | Atual (Azul) | Novo (Verdant) |
+|----------|--------------|----------------|
+| Primary | #0056b3 | #16a34a (green-600) |
+| Primary Hover | #004494 | #15803d (green-700) |
+| Accent | Azul claro | Verde menta suave |
+| Background | Cinza azulado | Branco/cinza neutro |
+| Sidebar | Branco | Branco com borda sutil |
 
----
+### 2. Página de Login (Auth.tsx)
+- Fundo com gradiente sutil verde
+- Card mais limpo com sombra elegante
+- Logo atualizado para combinar com verde
+- Tipografia mais refinada
+- Espaçamentos maiores
 
-## Fase 4: Import de Planilhas
+### 3. Layout Principal (MainLayout.tsx)
+- Sidebar mais minimalista
+- Header mais clean com linha sutil
+- Ícones com estilo mais profissional
+- Avatar com borda verde
 
-### Upload de Arquivos
-- Suporte a Excel (.xlsx) e CSV
-- Preview dos dados antes de confirmar importação
-- Mapeamento de colunas (associar colunas da planilha aos campos do sistema)
-- Validação e relatório de erros
+### 4. Cards e Tabelas
+- Bordas mais sutis
+- Sombras mais elegantes
+- Cabeçalhos de tabela com fundo discreto
+- Hover states refinados
 
-### Atualização em Massa
-- Atualizar registros existentes ou criar novos
-- Log das importações realizadas
+### 5. Botões e Formulários
+- Botão primário verde com gradiente sutil
+- Inputs com bordas mais finas
+- Focus states em verde
+- Estados hover mais suaves
 
----
-
-## Fase 5: Controle de Acesso
-
-### Painel do Admin
-- Gerenciamento de usuários (criar, editar, desativar)
-- Atribuição de níveis (Admin/Operador)
-- Visualização de todas as funcionalidades
-
-### Permissões do Operador
-- Acesso ao dashboard e tabelas
-- Edição de cobranças e status de pagamento
-- Sem acesso à gestão de usuários ou configurações do sistema
-
----
-
-## Fase 6: Relatórios e Filtros Avançados
-
-### Filtros Avançados
-- Por período de vencimento
-- Por status de pagamento
-- Por data de instalação
-- Combinação de múltiplos filtros
-
-### Histórico de Alterações
-- Log de todas as modificações em cobranças
-- Registro de quem alterou e quando
-- Visualização do histórico por cobrança
-
-### Exportação
-- Exportar dados filtrados para Excel/CSV
+### 6. Dashboard (Dashboard.tsx)
+- Métricas com ícones mais refinados
+- Cards com visual mais limpo
+- Cores de status mais harmoniosas
 
 ---
 
-## Design e Experiência
+## Detalhes Técnicos
 
-### Diretrizes Visuais
-- Mobile-first com layout responsivo
-- Fonte Roboto, cor primária #0056b3
-- Espaçamento de 8pt, raio de cantos 10px
-- Sombras sutis (10% opacidade)
-- Interface clean e moderna
+### Arquivo: src/index.css
+Atualizar variáveis CSS:
+```css
+:root {
+  --background: 0 0% 100%;
+  --foreground: 240 10% 10%;
+  --primary: 142 76% 36%;  /* Verde */
+  --primary-foreground: 0 0% 100%;
+  --accent: 142 40% 95%;
+  /* ... demais variáveis em tons neutros/verdes */
+}
+```
 
-### Componentes
-- Botões, inputs e tabelas reutilizáveis
-- Notificações visuais (toasts) para ações
-- Loading states e feedback visual
+### Arquivo: src/pages/Auth.tsx
+- Adicionar classe de gradiente no fundo
+- Refinar espaçamentos do card
+- Melhorar hierarquia visual
+
+### Arquivo: src/components/layout/MainLayout.tsx
+- Sidebar mais minimalista
+- Header com estilo profissional
+
+### Arquivo: tailwind.config.ts
+- Ajustar configuração para suportar novos tons
 
 ---
 
-## Tecnologias Utilizadas
-- **Frontend**: React + TypeScript + Tailwind CSS
-- **Backend**: Supabase (banco de dados, autenticação, políticas de segurança)
-- **Upload de planilhas**: Biblioteca para parsing de Excel/CSV
+## Resultado Esperado
+- Visual moderno e profissional
+- Paleta verde "Verdant" aplicada corretamente
+- Interface mais limpa e menos "infantil"
+- Melhor hierarquia visual
+- Experiência mais sofisticada
+
+---
+
+## Arquivos que serão modificados
+1. `src/index.css` - Paleta de cores Verdant
+2. `src/pages/Auth.tsx` - Login mais profissional
+3. `src/components/layout/MainLayout.tsx` - Layout refinado
+4. `src/pages/Dashboard.tsx` - Cards mais elegantes
+5. `src/components/ui/card.tsx` - Estilo de cards
+6. `tailwind.config.ts` - Configurações de tema
