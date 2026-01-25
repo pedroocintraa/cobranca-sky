@@ -52,7 +52,12 @@ export default function Status() {
     if (editingStatus) {
       await updateStatus.mutateAsync({ id: editingStatus.id, ...data });
     } else {
-      await createStatus.mutateAsync(data);
+      await createStatus.mutateAsync({
+        nome: data.nome,
+        cor: data.cor,
+        ordem: data.ordem,
+        ativo: data.ativo,
+      });
     }
     setIsDialogOpen(false);
   };
