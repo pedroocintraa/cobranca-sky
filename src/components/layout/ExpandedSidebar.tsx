@@ -97,22 +97,6 @@ export function ExpandedSidebar({ className }: ExpandedSidebarProps) {
         )}
       </nav>
 
-      {/* Upgrade Card */}
-      <div className="px-4 pb-4">
-        <div className="rounded-2xl gradient-coral p-4 text-white">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="h-5 w-5" />
-            <span className="font-semibold">Upgrade PRO</span>
-          </div>
-          <p className="text-sm text-white/80 mb-3">
-            Desbloqueie recursos avançados e relatórios detalhados
-          </p>
-          <button className="w-full rounded-xl bg-white py-2 text-sm font-medium text-foreground hover:bg-white/90 transition-colors">
-            Fazer upgrade
-          </button>
-        </div>
-      </div>
-
       {/* Settings */}
       <div className="px-3 pb-4">
         <NavLink

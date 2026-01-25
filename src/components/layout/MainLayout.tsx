@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, Menu, Bell, X } from 'lucide-react';
+import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from '@/components/NavLink';
@@ -42,6 +42,7 @@ export default function MainLayout() {
   const { profile, role, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -60,11 +61,12 @@ export default function MainLayout() {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
-      {/* Mini Sidebar - Desktop */}
-      <MiniSidebar className="hidden md:flex" />
-
-      {/* Expanded Sidebar - Large screens */}
-      <ExpandedSidebar />
+      {/* Sidebar - Desktop (toggle between Mini and Expanded) */}
+      {sidebarCollapsed ? (
+        <MiniSidebar className="hidden lg:flex" />
+      ) : (
+        <ExpandedSidebar className="hidden lg:flex" />
+      )}
 
       {/* Main Content */}
       <div className="flex flex-1 flex-col min-w-0">
@@ -138,7 +140,18 @@ export default function MainLayout() {
             </SheetContent>
           </Sheet>
 
-          <div className="hidden md:block" />
+          <Button
+            variant="ghost"
+            size="icon"
+            className="hidden lg:flex"
+            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="h-5 w-5 text-muted-foreground" />
+            ) : (
+              <PanelLeftClose className="h-5 w-5 text-muted-foreground" />
+            )}
+          </Button>
 
           {/* Right side */}
           <div className="flex items-center gap-3">
