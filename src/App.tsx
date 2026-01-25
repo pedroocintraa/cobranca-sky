@@ -12,6 +12,7 @@ import Clientes from "./pages/Clientes";
 import Cobrancas from "./pages/Cobrancas";
 import Importar from "./pages/Importar";
 import Status from "./pages/Status";
+import Usuarios from "./pages/Usuarios";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="cobrancas" element={<Cobrancas />} />
               <Route path="importar" element={<Importar />} />
               <Route path="status" element={<ProtectedRoute requireAdmin><Status /></ProtectedRoute>} />
+              <Route path="usuarios" element={<ProtectedRoute requireAdmin><Usuarios /></ProtectedRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
