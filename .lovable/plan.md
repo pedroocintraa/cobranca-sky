@@ -1,168 +1,177 @@
 
 
-# Plano: Implementar Atualização de Cobranças Existentes (CPF + Proposta)
+# Plano: Sistema de Cobranças Mensais Recorrentes com Atualização Automática de Status
 
-## Entendimento do Problema
+## Entendimento do Cenário
 
-Atualmente o sistema:
-- Sempre cria novas cobranças na importação
-- Não considera que um cliente pode ter múltiplas cobranças ao longo do tempo
-- Não atualiza cobranças existentes
+Atualmente:
+- Cobranças têm uma data de vencimento fixa (ex: 27/11/2025)
+- O status precisa ser atualizado manualmente
 
 O que você precisa:
-- Clientes têm cobranças mensais recorrentes
-- Cada cobrança é identificada por **CPF + Número da Proposta**
-- Se já existe uma cobrança com mesmo CPF + Proposta, **atualizar** os dados
-- Se não existe, **criar** uma nova cobrança
+- Cliente tem um **dia de vencimento** (ex: dia 27)
+- Todo mês ele tem uma cobrança que vence nesse dia
+- O status deve mudar automaticamente:
+  - **Pendente**: quando o mês atual chega
+  - **Atrasado**: quando passa do dia de vencimento sem pagamento
+
+## Abordagem Proposta
+
+Vou criar um **job automático** que roda diariamente para:
+1. Verificar todas as cobranças
+2. Atualizar status para "Atrasado" se a data de vencimento passou
+3. Criar nova cobrança do próximo mês quando o mês atual terminar (opcional)
 
 ## Mudanças Necessárias
 
-### Arquivo: `src/pages/Importar.tsx`
+### 1. Adicionar campo `dia_vencimento` na tabela `cobrancas`
 
-**1. Tornar Número da Proposta obrigatório (labels)**
+Este campo armazenará apenas o **dia** do mês (1-31) para facilitar o cálculo mensal.
 
-| Campo | Antes | Depois |
-|-------|-------|--------|
-| CPF | CPF * | CPF * |
-| Nº Proposta | Nº Proposta | Nº Proposta * |
+```sql
+ALTER TABLE cobrancas 
+ADD COLUMN dia_vencimento INTEGER;
 
-**2. Adicionar validação para número da proposta**
-
-```text
-Antes:
-  if (!mapping.cpf) {
-    toast({ description: 'Mapeie o campo CPF.' });
-  }
-
-Depois:
-  if (!mapping.cpf || !mapping.numero_proposta) {
-    toast({ description: 'Mapeie os campos CPF e Nº Proposta.' });
-  }
+-- Preencher automaticamente baseado na data_vencimento existente
+UPDATE cobrancas 
+SET dia_vencimento = EXTRACT(DAY FROM data_vencimento);
 ```
 
-**3. Buscar cobranças existentes antes do loop de importação**
+### 2. Criar Edge Function para atualização automática de status
+
+**Arquivo**: `supabase/functions/atualizar-status-cobrancas/index.ts`
 
 ```text
-// Buscar todas as cobranças existentes com suas propostas
-const { data: cobrancasExistentes } = await supabase
-  .from('cobrancas')
-  .select('id, numero_proposta, cliente:clientes(cpf)');
+Lógica:
+1. Buscar todas as cobranças que NÃO estão "Pago" ou "Cancelado"
+2. Para cada cobrança:
+   - Se data_vencimento < hoje → marcar como "Atrasado"
+   - Se data_vencimento = hoje → marcar como "Pendente" (se não tiver status)
+3. Registrar log da execução
 ```
 
-**4. Alterar lógica de processamento para verificar se já existe**
+### 3. Agendar execução diária via CRON
 
-```text
-Para cada linha da planilha:
-
-1. Extrair CPF e número_proposta
-2. Verificar se já existe cobrança com mesmo CPF + proposta
-3. Se existe:
-   - Atualizar cobrança existente (UPDATE)
-   - Incrementar contador "updated"
-4. Se não existe:
-   - Criar nova cobrança (INSERT)
-   - Incrementar contador "success"
-```
-
-**5. Implementar UPDATE quando cobrança existe**
-
-```text
-// Buscar cobrança existente
-const cobrancaExistente = cobrancasExistentes?.find(c => 
-  c.cliente?.cpf === cpf && 
-  c.numero_proposta === numeroProposta
+```sql
+-- Executar todo dia às 00:05
+SELECT cron.schedule(
+  'atualizar-status-cobrancas',
+  '5 0 * * *',
+  $$
+  SELECT net.http_post(
+    url := 'https://pjwnkaoeiaylbhmmdbec.supabase.co/functions/v1/atualizar-status-cobrancas',
+    headers := '{"Authorization": "Bearer <anon_key>"}'::jsonb
+  ) AS request_id;
+  $$
 );
-
-if (cobrancaExistente) {
-  // UPDATE - atualizar dados
-  const { error } = await supabase
-    .from('cobrancas')
-    .update({
-      valor,
-      data_instalacao: dataInstalacao,
-      data_vencimento: dataVencimento,
-      status_id: statusId,
-      updated_by: user?.id
-    })
-    .eq('id', cobrancaExistente.id);
-    
-  results.updated++;
-} else {
-  // INSERT - criar nova
-  await supabase.from('cobrancas').insert([...]);
-  results.success++;
-}
 ```
 
-## Fluxo de Importação Atualizado
+### 4. Opção: Gerar cobranças do próximo mês automaticamente
 
 ```text
-+------------------+
-| Upload Planilha  |
-+--------+---------+
-         |
-         v
-+------------------+
-| Mapear Colunas   |
-| - CPF *          |
-| - Nº Proposta *  |
-| - Demais campos  |
-+--------+---------+
-         |
-         v
-+------------------+
-| Buscar Cobranças |
-| Existentes       |
-+--------+---------+
-         |
-         v
-+------------------+
-| Para cada linha: |
-|                  |
-| CPF + Proposta   |
-| já existe?       |
-+--------+---------+
-    |         |
-   SIM       NAO
-    |         |
-    v         v
-+-------+ +-------+
-|UPDATE | |INSERT |
-+-------+ +-------+
-    |         |
-    v         v
-+------------------+
-| Contabilizar     |
-| - Atualizados    |
-| - Criados        |
-| - Erros          |
-+------------------+
+Quando o mês termina:
+1. Buscar todas as cobranças do mês atual
+2. Criar cópia para o próximo mês com:
+   - Mesmo cliente_id
+   - Mesmo numero_proposta
+   - Mesmo dia_vencimento
+   - Status = Pendente
+   - data_vencimento = dia_vencimento do próximo mês
 ```
 
-## Resultado Esperado
-
-| Cenário | Comportamento |
-|---------|---------------|
-| CPF + Proposta não existe | Cria novo cliente (se necessário) + nova cobrança |
-| CPF + Proposta já existe | Atualiza valor, datas, status da cobrança existente |
-| CPF existe, Proposta nova | Cria nova cobrança para o cliente existente |
-
-## Mensagens de Feedback
+## Fluxo Automático
 
 ```text
-Importação concluída:
-- X registros criados
-- Y registros atualizados  
-- Z erros
+┌─────────────────────────────────────────────────────────────┐
+│                     CRON (Todo dia 00:05)                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Edge Function: atualizar-status                │
+│                                                             │
+│  1. Buscar cobranças com status != Pago/Cancelado           │
+│  2. Para cada cobrança:                                     │
+│     ┌─────────────────────────────────────────────────────┐ │
+│     │ data_vencimento < hoje?                             │ │
+│     │   SIM → status = "Atrasado"                         │ │
+│     │   NÃO → mantém status atual                         │ │
+│     └─────────────────────────────────────────────────────┘ │
+│  3. Log: "X cobranças atualizadas para Atrasado"            │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Campos Obrigatórios Atualizados
+## Fluxo Mensal (Importação)
 
-| Campo | Obrigatório | Motivo |
-|-------|-------------|--------|
-| CPF | Sim | Identifica o cliente |
-| Nº Proposta | Sim | Identifica a cobrança única |
-| Nome | Não | Usa CPF como fallback |
-| Valor | Não | Default: 0 |
-| Data Vencimento | Não | Default: data atual |
+```text
+┌─────────────────────────────────────────────────────────────┐
+│              Upload Planilha (Mensal)                       │
+│              Ex: Planilha 01/2026                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│         Identificar por CPF + Nº Proposta                   │
+│                                                             │
+│  ┌────────────────┐        ┌──────────────────────────────┐ │
+│  │ Já existe?     │   NÃO  │ Criar nova cobrança          │ │
+│  │ (mesmo CPF +   │───────▶│ - data_vencimento: 27/01/26  │ │
+│  │  proposta)     │        │ - dia_vencimento: 27         │ │
+│  └────────────────┘        │ - status: Pendente           │ │
+│         │ SIM              └──────────────────────────────┘ │
+│         ▼                                                   │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ Atualizar data_vencimento para novo mês              │   │
+│  │ - data_vencimento: 27/01/2026                        │   │
+│  │ - Manter valor, proposta, cliente                    │   │
+│  │ - Reset status para "Pendente"                       │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Arquivos a Criar/Modificar
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| Migration SQL | Criar | Adicionar coluna `dia_vencimento` |
+| `supabase/functions/atualizar-status-cobrancas/index.ts` | Criar | Edge function para atualização automática |
+| `supabase/config.toml` | Editar | Registrar nova função |
+| `src/pages/Importar.tsx` | Editar | Resetar status para Pendente ao atualizar |
+| Migration SQL | Criar | Configurar CRON job |
+
+## Comportamento Esperado
+
+| Situação | Status Atual | Ação Automática |
+|----------|--------------|-----------------|
+| Vencimento no futuro | Pendente | Nada |
+| Vencimento hoje | Pendente | Nada |
+| Vencimento ontem | Pendente | → Atrasado |
+| Já está Pago | Pago | Nada |
+| Já está Cancelado | Cancelado | Nada |
+| Nova importação (mesmo CPF+Proposta) | Atrasado | → Pendente (novo mês) |
+
+## Exemplo Prático
+
+```text
+Cliente: João Silva
+CPF: 123.456.789-00
+Proposta: 5100199972
+Dia vencimento: 27
+
+Timeline:
+- 27/11/2025: Cobrança criada → Status: Pendente
+- 28/11/2025: CRON roda → Status: Atrasado (passou do dia 27)
+- 15/12/2025: Importa planilha 12/2025 → Status: Pendente (nova data: 27/12/2025)
+- 28/12/2025: CRON roda → Status: Atrasado
+- E assim continua...
+```
+
+## Resultado Final
+
+- Status atualiza automaticamente todos os dias
+- Importação mensal atualiza a data de vencimento
+- Histórico de mudanças de status é mantido (trigger existente)
+- Cobranças pagas ou canceladas não são afetadas
 
