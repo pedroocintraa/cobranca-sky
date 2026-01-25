@@ -205,6 +205,67 @@ export type Database = {
           },
         ]
       }
+      historico_mensagens: {
+        Row: {
+          api_response: Json | null
+          canal: string
+          cliente_id: string
+          created_at: string
+          fatura_id: string | null
+          id: string
+          lote_id: string | null
+          mensagem: string
+          status: string | null
+          tipo: Database["public"]["Enums"]["tipo_mensagem"]
+        }
+        Insert: {
+          api_response?: Json | null
+          canal?: string
+          cliente_id: string
+          created_at?: string
+          fatura_id?: string | null
+          id?: string
+          lote_id?: string | null
+          mensagem: string
+          status?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"]
+        }
+        Update: {
+          api_response?: Json | null
+          canal?: string
+          cliente_id?: string
+          created_at?: string
+          fatura_id?: string | null
+          id?: string
+          lote_id?: string | null
+          mensagem?: string
+          status?: string | null
+          tipo?: Database["public"]["Enums"]["tipo_mensagem"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_mensagens_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_mensagens_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_mensagens_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes_cobranca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_logs: {
         Row: {
           created_at: string
@@ -235,6 +296,118 @@ export type Database = {
           registros_erro?: number
           registros_importados?: number
           user_id?: string | null
+        }
+        Relationships: []
+      }
+      itens_lote: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          enviado_at: string | null
+          erro_mensagem: string | null
+          fatura_id: string
+          id: string
+          lote_id: string
+          mensagem_gerada: string | null
+          status_envio: Database["public"]["Enums"]["status_envio"]
+          telefone: string
+          tentativas: number
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          enviado_at?: string | null
+          erro_mensagem?: string | null
+          fatura_id: string
+          id?: string
+          lote_id: string
+          mensagem_gerada?: string | null
+          status_envio?: Database["public"]["Enums"]["status_envio"]
+          telefone: string
+          tentativas?: number
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          enviado_at?: string | null
+          erro_mensagem?: string | null
+          fatura_id?: string
+          id?: string
+          lote_id?: string
+          mensagem_gerada?: string | null
+          status_envio?: Database["public"]["Enums"]["status_envio"]
+          telefone?: string
+          tentativas?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "itens_lote_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itens_lote_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "itens_lote_lote_id_fkey"
+            columns: ["lote_id"]
+            isOneToOne: false
+            referencedRelation: "lotes_cobranca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lotes_cobranca: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          status: Database["public"]["Enums"]["lote_status"]
+          total_enviados: number
+          total_falha: number
+          total_faturas: number
+          total_sucesso: number
+          updated_at: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          status?: Database["public"]["Enums"]["lote_status"]
+          total_enviados?: number
+          total_falha?: number
+          total_faturas?: number
+          total_sucesso?: number
+          updated_at?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          status?: Database["public"]["Enums"]["lote_status"]
+          total_enviados?: number
+          total_falha?: number
+          total_faturas?: number
+          total_sucesso?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -334,6 +507,15 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "operator"
+      lote_status:
+        | "rascunho"
+        | "aguardando_aprovacao"
+        | "aprovado"
+        | "em_andamento"
+        | "concluido"
+        | "cancelado"
+      status_envio: "pendente" | "enviando" | "enviado" | "falha"
+      tipo_mensagem: "cobranca" | "lembrete" | "agradecimento"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -462,6 +644,16 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "operator"],
+      lote_status: [
+        "rascunho",
+        "aguardando_aprovacao",
+        "aprovado",
+        "em_andamento",
+        "concluido",
+        "cancelado",
+      ],
+      status_envio: ["pendente", "enviando", "enviado", "falha"],
+      tipo_mensagem: ["cobranca", "lembrete", "agradecimento"],
     },
   },
 } as const
