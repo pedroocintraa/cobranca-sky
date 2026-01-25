@@ -53,23 +53,23 @@ function MetricCard({
   };
 
   return (
-    <Card className="shadow-card">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
+    <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="flex flex-row items-center justify-between pb-2 border-b-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={`rounded-lg p-2 ${variantStyles[variant]}`}>
+        <div className={`rounded-md p-2 ${variantStyles[variant]}`}>
           <Icon className="h-4 w-4" />
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-0">
         {isLoading ? (
           <Skeleton className="h-8 w-24" />
         ) : (
           <>
-            <div className="text-2xl font-bold">{value}</div>
+            <div className="text-2xl font-bold text-foreground">{value}</div>
             {subValue && (
-              <p className="text-xs text-muted-foreground">{subValue}</p>
+              <p className="text-xs text-muted-foreground mt-1">{subValue}</p>
             )}
           </>
         )}
@@ -129,14 +129,14 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-8 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground">Visão geral das cobranças</p>
+        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+        <p className="text-sm text-muted-foreground mt-1">Visão geral das cobranças</p>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total de Cobranças"
           value={metrics?.totalCobrancas ?? 0}
@@ -171,24 +171,24 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Vencendo Hoje</CardTitle>
+      <div className="grid gap-5 sm:grid-cols-2">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center gap-2 border-b-0">
+            <Calendar className="h-5 w-5 text-warning" />
+            <CardTitle className="text-base font-medium">Vencendo Hoje</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <div className="text-3xl font-bold text-warning">
               {metrics?.vencendoHoje ?? 0}
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-card">
-          <CardHeader className="flex flex-row items-center gap-2">
+        <Card className="shadow-sm">
+          <CardHeader className="flex flex-row items-center gap-2 border-b-0">
             <Clock className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base">Próximos 7 dias</CardTitle>
+            <CardTitle className="text-base font-medium">Próximos 7 dias</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="pt-0">
             <div className="text-3xl font-bold text-primary">
               {metrics?.vencendo7Dias ?? 0}
             </div>
@@ -197,9 +197,9 @@ export default function Dashboard() {
       </div>
 
       {/* Upcoming Table */}
-      <Card className="shadow-card">
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
+      <Card className="shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="flex items-center justify-between text-base font-medium">
             <span>Próximos Vencimentos</span>
             <Link
               to="/cobrancas"
