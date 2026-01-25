@@ -69,7 +69,7 @@ const fieldLabels: Record<keyof ColumnMapping, string> = {
   nome: 'Nome do Cliente',
   telefone: 'Telefone',
   email: 'Email',
-  numero_proposta: 'Nº Proposta',
+  numero_proposta: 'Nº Proposta *',
   valor: 'Valor',
   data_instalacao: 'Data Instalação',
   data_vencimento: 'Data Vencimento',
@@ -214,11 +214,11 @@ export default function Importar() {
   };
 
   const handleImport = async () => {
-    if (!mapping.cpf) {
+    if (!mapping.cpf || !mapping.numero_proposta) {
       toast({
         variant: 'destructive',
-        title: 'Campo obrigatório',
-        description: 'Mapeie o campo CPF.',
+        title: 'Campos obrigatórios',
+        description: 'Mapeie os campos CPF e Nº Proposta.',
       });
       return;
     }
@@ -228,15 +228,27 @@ export default function Importar() {
     const results = { success: 0, errors: 0, updated: 0 };
     const errorDetails: { linha: number; erro: string }[] = [];
 
+    // Buscar cobranças existentes com CPF do cliente
+    const { data: cobrancasExistentes } = await supabase
+      .from('cobrancas')
+      .select('id, numero_proposta, cliente:clientes(cpf)');
+
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
       setProgress(Math.round(((i + 1) / data.length) * 100));
 
       try {
         const cpf = row[mapping.cpf]?.trim();
+        const numeroProposta = row[mapping.numero_proposta]?.trim();
         
         if (!cpf) {
           errorDetails.push({ linha: i + 2, erro: 'CPF inválido ou vazio' });
+          results.errors++;
+          continue;
+        }
+
+        if (!numeroProposta) {
+          errorDetails.push({ linha: i + 2, erro: 'Nº Proposta inválido ou vazio' });
           results.errors++;
           continue;
         }
@@ -244,7 +256,6 @@ export default function Importar() {
         const nome = mapping.nome ? row[mapping.nome]?.trim() : cpf;
         const telefone = mapping.telefone ? row[mapping.telefone]?.trim() || null : null;
         const email = mapping.email ? row[mapping.email]?.trim() || null : null;
-        const numeroProposta = mapping.numero_proposta ? row[mapping.numero_proposta]?.trim() || null : null;
         const valor = mapping.valor ? parseValor(row[mapping.valor] || '') : 0;
         const dataInstalacao = mapping.data_instalacao ? parseDate(row[mapping.data_instalacao] || '') : null;
         const dataVencimento = mapping.data_vencimento 
@@ -282,23 +293,49 @@ export default function Importar() {
           statusId = matchedStatus?.id || null;
         }
 
-        // Create cobranca
-        const { error: cobrancaError } = await supabase.from('cobrancas').insert([{
-          cliente_id: clienteId,
-          numero_proposta: numeroProposta,
-          valor,
-          data_instalacao: dataInstalacao,
-          data_vencimento: dataVencimento,
-          status_id: statusId,
-          created_by: user?.id || null,
-          updated_by: user?.id || null,
-        }]);
+        // Verificar se cobrança já existe (CPF + Proposta)
+        const cobrancaExistente = cobrancasExistentes?.find(
+          (c) => c.cliente?.cpf === cpf && c.numero_proposta === numeroProposta
+        );
 
-        if (cobrancaError) {
-          errorDetails.push({ linha: i + 2, erro: `Erro ao criar cobrança: ${cobrancaError.message}` });
-          results.errors++;
+        if (cobrancaExistente) {
+          // UPDATE - atualizar cobrança existente
+          const { error: updateError } = await supabase
+            .from('cobrancas')
+            .update({
+              valor,
+              data_instalacao: dataInstalacao,
+              data_vencimento: dataVencimento,
+              status_id: statusId,
+              updated_by: user?.id || null,
+            })
+            .eq('id', cobrancaExistente.id);
+
+          if (updateError) {
+            errorDetails.push({ linha: i + 2, erro: `Erro ao atualizar cobrança: ${updateError.message}` });
+            results.errors++;
+          } else {
+            results.updated++;
+          }
         } else {
-          results.success++;
+          // INSERT - criar nova cobrança
+          const { error: cobrancaError } = await supabase.from('cobrancas').insert([{
+            cliente_id: clienteId,
+            numero_proposta: numeroProposta,
+            valor,
+            data_instalacao: dataInstalacao,
+            data_vencimento: dataVencimento,
+            status_id: statusId,
+            created_by: user?.id || null,
+            updated_by: user?.id || null,
+          }]);
+
+          if (cobrancaError) {
+            errorDetails.push({ linha: i + 2, erro: `Erro ao criar cobrança: ${cobrancaError.message}` });
+            results.errors++;
+          } else {
+            results.success++;
+          }
         }
       } catch (error) {
         errorDetails.push({ linha: i + 2, erro: 'Erro inesperado' });
@@ -319,16 +356,17 @@ export default function Importar() {
     setResults(results);
     setStep('done');
 
+    const totalProcessed = results.success + results.updated;
     if (results.errors === 0) {
       toast({
         title: 'Importação concluída!',
-        description: `${results.success} registros importados com sucesso.`,
+        description: `${results.success} criados, ${results.updated} atualizados.`,
       });
     } else {
       toast({
         variant: 'destructive',
         title: 'Importação com erros',
-        description: `${results.success} importados, ${results.errors} erros.`,
+        description: `${results.success} criados, ${results.updated} atualizados, ${results.errors} erros.`,
       });
     }
   };
