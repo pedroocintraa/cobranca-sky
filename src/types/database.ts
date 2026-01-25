@@ -55,6 +55,8 @@ export interface Cobranca {
   // Joined data
   cliente?: Cliente;
   status?: StatusPagamento;
+  faturas?: Fatura[];
+  fatura_pendente?: Fatura;
 }
 
 export interface CobrancaHistorico {
@@ -78,6 +80,22 @@ export interface ImportLog {
   registros_erro: number;
   detalhes_erro: Record<string, unknown> | null;
   created_at: string;
+}
+
+// Fatura (histórico mensal de uma cobrança)
+export interface Fatura {
+  id: string;
+  cobranca_id: string;
+  mes_referencia: string;
+  data_vencimento: string;
+  valor: number;
+  status_id: string | null;
+  data_pagamento: string | null;
+  observacoes: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  status?: StatusPagamento;
 }
 
 // Dashboard metrics

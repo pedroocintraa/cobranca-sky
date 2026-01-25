@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCobrancas, useCreateCobranca, useUpdateCobranca, useDeleteCobranca } from '@/hooks/useCobrancas';
 import { useClientes } from '@/hooks/useClientes';
 import { useStatusPagamento } from '@/hooks/useStatusPagamento';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,13 +46,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
-import { Plus, Search, Pencil, Trash2, Receipt, CalendarIcon, Filter } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Receipt, CalendarIcon, Filter, FileText } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format, isBefore, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import type { Cobranca } from '@/types/database';
+import type { Cobranca, Fatura } from '@/types/database';
+import { FaturasModal } from '@/components/FaturasModal';
+import { useQuery } from '@tanstack/react-query';
 
 const cobrancaSchema = z.object({
   cliente_id: z.string().min(1, 'Selecione um cliente'),
@@ -81,15 +84,60 @@ export default function Cobrancas() {
   const updateCobranca = useUpdateCobranca();
   const deleteCobranca = useDeleteCobranca();
 
+  // Buscar faturas de todas as cobranças
+  const { data: todasFaturas } = useQuery({
+    queryKey: ['todas-faturas'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('faturas')
+        .select(`*, status:status_pagamento(*)`)
+        .order('mes_referencia', { ascending: true });
+      if (error) throw error;
+      return data as Fatura[];
+    },
+  });
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [mesFilter, setMesFilter] = useState<string>('all');
+  const [selectedCobranca, setSelectedCobranca] = useState<Cobranca | null>(null);
+  const [faturasModalOpen, setFaturasModalOpen] = useState(false);
 
-  // Extrair meses únicos das cobranças para o filtro
-  const mesesDisponiveis = [...new Set(cobrancas?.map(c => c.mes_referencia).filter(Boolean) as string[])].sort().reverse();
+  // Extrair meses únicos das faturas para o filtro
+  const mesesDisponiveis = useMemo(() => {
+    if (!todasFaturas) return [];
+    return [...new Set(todasFaturas.map(f => f.mes_referencia).filter(Boolean))].sort().reverse();
+  }, [todasFaturas]);
+  
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCobranca, setEditingCobranca] = useState<Cobranca | null>(null);
   const [deletingCobranca, setDeletingCobranca] = useState<Cobranca | null>(null);
+
+  // Agrupar faturas por cobrança e encontrar a mais antiga pendente
+  const cobrancasComFaturaPendente = useMemo(() => {
+    if (!cobrancas || !todasFaturas) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return cobrancas.map((cobranca) => {
+      const faturas = todasFaturas.filter((f) => f.cobranca_id === cobranca.id);
+      
+      // Encontrar a fatura mais antiga não paga (e não cancelada)
+      const faturaPendente = faturas
+        .filter((f) => {
+          const statusNome = f.status?.nome?.toLowerCase();
+          return statusNome !== 'pago' && statusNome !== 'cancelado';
+        })
+        .sort((a, b) => a.mes_referencia.localeCompare(b.mes_referencia))[0];
+
+      return {
+        ...cobranca,
+        faturas,
+        fatura_pendente: faturaPendente || null,
+      };
+    });
+  }, [cobrancas, todasFaturas]);
 
   const form = useForm<CobrancaFormData>({
     resolver: zodResolver(cobrancaSchema),
@@ -104,24 +152,29 @@ export default function Cobrancas() {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const filteredCobrancas = cobrancas?.filter((cobranca) => {
+  // Filtrar cobranças com base na fatura pendente
+  const filteredCobrancas = cobrancasComFaturaPendente.filter((cobranca) => {
     const searchLower = search.toLowerCase();
     const matchesSearch =
       cobranca.cliente?.nome?.toLowerCase().includes(searchLower) ||
       cobranca.cliente?.cpf?.toLowerCase().includes(searchLower) ||
       cobranca.numero_proposta?.toLowerCase().includes(searchLower);
 
+    // Filtro de status baseado na fatura pendente
+    const faturaPendente = cobranca.fatura_pendente;
+    const statusNome = faturaPendente?.status?.nome?.toLowerCase();
+    const vencimento = faturaPendente ? new Date(faturaPendente.data_vencimento) : null;
+    const isAtrasado = vencimento && isBefore(vencimento, today) && statusNome !== 'pago' && statusNome !== 'cancelado';
+
     const matchesStatus =
       statusFilter === 'all' ||
-      cobranca.status_id === statusFilter ||
-      (statusFilter === 'atrasado' &&
-        !cobranca.status?.nome?.toLowerCase().includes('pago') &&
-        !cobranca.status?.nome?.toLowerCase().includes('cancelado') &&
-        isBefore(new Date(cobranca.data_vencimento), today));
+      faturaPendente?.status_id === statusFilter ||
+      (statusFilter === 'atrasado' && isAtrasado);
 
+    // Filtro de mês baseado na fatura pendente
     const matchesMes =
       mesFilter === 'all' ||
-      cobranca.mes_referencia === mesFilter;
+      faturaPendente?.mes_referencia === mesFilter;
 
     return matchesSearch && matchesStatus && matchesMes;
   });
@@ -532,71 +585,93 @@ export default function Cobrancas() {
                   <TableRow>
                     <TableHead>Cliente</TableHead>
                     <TableHead className="hidden md:table-cell">Proposta</TableHead>
-                    <TableHead className="hidden lg:table-cell">Mês Ref.</TableHead>
+                    <TableHead>Fatura Pendente</TableHead>
                     <TableHead>Vencimento</TableHead>
                     <TableHead className="text-right">Valor</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="w-24">Ações</TableHead>
+                    <TableHead className="w-32">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredCobrancas.map((cobranca) => (
-                    <TableRow key={cobranca.id}>
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{cobranca.cliente?.nome || 'N/A'}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {cobranca.cliente?.telefone}
+                  {filteredCobrancas.map((cobranca) => {
+                    const faturaPendente = cobranca.fatura_pendente;
+                    const totalFaturas = cobranca.faturas?.length || 0;
+                    
+                    return (
+                      <TableRow key={cobranca.id}>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium">{cobranca.cliente?.nome || 'N/A'}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {cobranca.cliente?.telefone}
+                            </div>
                           </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell">
-                        {cobranca.numero_proposta || '-'}
-                      </TableCell>
-                      <TableCell className="hidden lg:table-cell">
-                        {cobranca.mes_referencia ? (
-                          <Badge variant="outline" className="font-normal">
-                            {(() => {
-                              const [ano, mesNum] = cobranca.mes_referencia.split('-');
-                              const mesLabel = format(new Date(parseInt(ano), parseInt(mesNum) - 1, 1), 'MMM/yy', { locale: ptBR });
-                              return mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
-                            })()}
-                          </Badge>
-                        ) : '-'}
-                      </TableCell>
-                      <TableCell>
-                        {format(new Date(cobranca.data_vencimento), 'dd/MM/yyyy', {
-                          locale: ptBR,
-                        })}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(Number(cobranca.valor))}
-                      </TableCell>
-                      <TableCell>
-                        {getUrgencyBadge(cobranca.data_vencimento, cobranca.status)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => openEditDialog(cobranca)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          {isAdmin && (
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell">
+                          {cobranca.numero_proposta || '-'}
+                        </TableCell>
+                        <TableCell>
+                          {faturaPendente ? (
+                            <Badge variant="outline" className="font-normal">
+                              {(() => {
+                                const [ano, mesNum] = faturaPendente.mes_referencia.split('-');
+                                const mesLabel = format(new Date(parseInt(ano), parseInt(mesNum) - 1, 1), 'MMM/yy', { locale: ptBR });
+                                return mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1);
+                              })()}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Todas pagas</span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {faturaPendente ? (
+                            format(new Date(faturaPendente.data_vencimento), 'dd/MM/yyyy', { locale: ptBR })
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {faturaPendente ? formatCurrency(Number(faturaPendente.valor)) : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {faturaPendente ? (
+                            getUrgencyBadge(faturaPendente.data_vencimento, faturaPendente.status)
+                          ) : (
+                            <Badge className="bg-primary/10 text-primary border-primary/20">Quitado</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedCobranca(cobranca);
+                                setFaturasModalOpen(true);
+                              }}
+                            >
+                              <FileText className="mr-1 h-3 w-3" />
+                              {totalFaturas}
+                            </Button>
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => setDeletingCobranca(cobranca)}
+                              onClick={() => openEditDialog(cobranca)}
                             >
-                              <Trash2 className="h-4 w-4 text-destructive" />
+                              <Pencil className="h-4 w-4" />
                             </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setDeletingCobranca(cobranca)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -629,6 +704,13 @@ export default function Cobrancas() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Faturas */}
+      <FaturasModal
+        cobranca={selectedCobranca}
+        open={faturasModalOpen}
+        onOpenChange={setFaturasModalOpen}
+      />
     </div>
   );
 }

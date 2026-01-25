@@ -51,8 +51,9 @@ export function useMonthlyMetrics() {
       const startDate = `${currentYear}-01-01`;
       const endDate = `${currentYear}-12-31`;
 
+      // Buscar faturas em vez de cobranças
       const { data, error } = await supabase
-        .from('cobrancas')
+        .from('faturas')
         .select('valor, data_vencimento')
         .gte('data_vencimento', startDate)
         .lte('data_vencimento', endDate);
@@ -60,9 +61,9 @@ export function useMonthlyMetrics() {
       if (error) throw error;
 
       const monthlyData = Array(12).fill(0);
-      data?.forEach((c) => {
-        const month = new Date(c.data_vencimento).getMonth();
-        monthlyData[month] += Number(c.valor) || 0;
+      data?.forEach((f) => {
+        const month = new Date(f.data_vencimento).getMonth();
+        monthlyData[month] += Number(f.valor) || 0;
       });
 
       const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
@@ -75,8 +76,9 @@ export function useDashboardMetrics() {
   return useQuery({
     queryKey: ['dashboard-metrics'],
     queryFn: async () => {
-      const { data: cobrancas, error } = await supabase
-        .from('cobrancas')
+      // Buscar faturas em vez de cobranças
+      const { data: faturas, error } = await supabase
+        .from('faturas')
         .select(`
           *,
           status:status_pagamento(nome)
@@ -90,7 +92,7 @@ export function useDashboardMetrics() {
       in7Days.setDate(in7Days.getDate() + 7);
 
       const metrics: DashboardMetrics = {
-        totalCobrancas: cobrancas?.length || 0,
+        totalCobrancas: faturas?.length || 0,
         valorTotal: 0,
         totalPagos: 0,
         valorPagos: 0,
@@ -102,10 +104,10 @@ export function useDashboardMetrics() {
         vencendo7Dias: 0,
       };
 
-      cobrancas?.forEach((c) => {
-        const valor = Number(c.valor) || 0;
-        const vencimento = new Date(c.data_vencimento);
-        const statusNome = (c.status as { nome?: string })?.nome?.toLowerCase();
+      faturas?.forEach((f) => {
+        const valor = Number(f.valor) || 0;
+        const vencimento = new Date(f.data_vencimento);
+        const statusNome = (f.status as { nome?: string })?.nome?.toLowerCase();
 
         metrics.valorTotal += valor;
 

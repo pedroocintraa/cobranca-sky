@@ -151,6 +151,60 @@ export type Database = {
           },
         ]
       }
+      faturas: {
+        Row: {
+          cobranca_id: string
+          created_at: string
+          data_pagamento: string | null
+          data_vencimento: string
+          id: string
+          mes_referencia: string
+          observacoes: string | null
+          status_id: string | null
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          cobranca_id: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento: string
+          id?: string
+          mes_referencia: string
+          observacoes?: string | null
+          status_id?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          cobranca_id?: string
+          created_at?: string
+          data_pagamento?: string | null
+          data_vencimento?: string
+          id?: string
+          mes_referencia?: string
+          observacoes?: string | null
+          status_id?: string | null
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "faturas_cobranca_id_fkey"
+            columns: ["cobranca_id"]
+            isOneToOne: false
+            referencedRelation: "cobrancas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "faturas_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "status_pagamento"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_logs: {
         Row: {
           created_at: string

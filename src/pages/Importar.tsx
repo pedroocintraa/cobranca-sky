@@ -228,10 +228,15 @@ export default function Importar() {
     const results = { success: 0, errors: 0, updated: 0 };
     const errorDetails: { linha: number; erro: string }[] = [];
 
-    // Buscar cobranças existentes com CPF do cliente e mes_referencia
+    // Buscar cobranças existentes com CPF do cliente
     const { data: cobrancasExistentes } = await supabase
       .from('cobrancas')
-      .select('id, numero_proposta, mes_referencia, status_id, cliente:clientes(cpf)');
+      .select('id, numero_proposta, cliente:clientes(cpf)');
+
+    // Buscar faturas existentes
+    const { data: faturasExistentes } = await supabase
+      .from('faturas')
+      .select('id, cobranca_id, mes_referencia, status_id');
 
     for (let i = 0; i < data.length; i++) {
       const row = data[i];
@@ -293,65 +298,108 @@ export default function Importar() {
           statusId = matchedStatus?.id || null;
         }
 
-        // Extrair dia do vencimento para o campo dia_vencimento
-        const diaVencimento = dataVencimento ? parseInt(dataVencimento.split('-')[2], 10) : null;
-
-        // Calcular mes_referencia a partir da data de vencimento (formato: YYYY-MM)
-        const mesReferencia = dataVencimento ? dataVencimento.substring(0, 7) : null;
-
-        // Verificar se cobrança já existe (CPF + Proposta + mes_referencia)
-        // Nova lógica: cada mês é uma fatura separada
-        const cobrancaExistente = cobrancasExistentes?.find(
-          (c) => c.cliente?.cpf === cpf && 
-                 c.numero_proposta === numeroProposta && 
-                 c.mes_referencia === mesReferencia
-        );
-
         // Buscar status "Pendente" para novas faturas
         const statusPendente = statusList?.find(
           (s) => s.nome.toLowerCase() === 'pendente'
         );
 
-        if (cobrancaExistente) {
-          // UPDATE - reimportação do mesmo mês (atualiza dados existentes)
-          const { error: updateError } = await supabase
+        // Extrair dia do vencimento e mes_referencia
+        const diaVencimento = dataVencimento ? parseInt(dataVencimento.split('-')[2], 10) : null;
+        const mesReferencia = dataVencimento ? dataVencimento.substring(0, 7) : null;
+
+        // NOVA LÓGICA: Verificar se cobrança principal existe (CPF + Proposta)
+        const cobrancaPrincipal = cobrancasExistentes?.find(
+          (c) => c.cliente?.cpf === cpf && c.numero_proposta === numeroProposta
+        );
+
+        let cobrancaId: string;
+
+        if (cobrancaPrincipal) {
+          // Cobrança existe - usar o ID existente
+          cobrancaId = cobrancaPrincipal.id;
+        } else {
+          // Criar nova cobrança principal
+          const { data: novaCobranca, error: cobrancaError } = await supabase
             .from('cobrancas')
-            .update({
+            .insert([{
+              cliente_id: clienteId,
+              numero_proposta: numeroProposta,
               valor,
               data_instalacao: dataInstalacao,
-              data_vencimento: dataVencimento,
+              data_vencimento: dataVencimento, // Data da primeira fatura
               dia_vencimento: diaVencimento,
-              status_id: statusId || cobrancaExistente.status_id, // Mantém status atual se não informado
+              mes_referencia: mesReferencia, // Mês da primeira fatura
+              status_id: null, // Status fica na fatura
+              created_by: user?.id || null,
               updated_by: user?.id || null,
+            }])
+            .select()
+            .single();
+
+          if (cobrancaError) {
+            errorDetails.push({ linha: i + 2, erro: `Erro ao criar cobrança: ${cobrancaError.message}` });
+            results.errors++;
+            continue;
+          }
+
+          cobrancaId = novaCobranca.id;
+          // Adicionar à lista local para próximas iterações
+          cobrancasExistentes?.push({
+            id: novaCobranca.id,
+            numero_proposta: numeroProposta,
+            cliente: { cpf }
+          } as any);
+        }
+
+        // Verificar se fatura do mês já existe
+        const faturaExistente = faturasExistentes?.find(
+          (f) => f.cobranca_id === cobrancaId && f.mes_referencia === mesReferencia
+        );
+
+        if (faturaExistente) {
+          // UPDATE - atualizar fatura existente
+          const { error: updateError } = await supabase
+            .from('faturas')
+            .update({
+              valor,
+              data_vencimento: dataVencimento,
+              status_id: statusId || faturaExistente.status_id, // Mantém status atual se não informado
             })
-            .eq('id', cobrancaExistente.id);
+            .eq('id', faturaExistente.id);
 
           if (updateError) {
-            errorDetails.push({ linha: i + 2, erro: `Erro ao atualizar cobrança: ${updateError.message}` });
+            errorDetails.push({ linha: i + 2, erro: `Erro ao atualizar fatura: ${updateError.message}` });
             results.errors++;
           } else {
             results.updated++;
           }
         } else {
-          // INSERT - nova fatura do mês (CPF + Proposta + mês diferente)
-          const { error: cobrancaError } = await supabase.from('cobrancas').insert([{
-            cliente_id: clienteId,
-            numero_proposta: numeroProposta,
-            valor,
-            data_instalacao: dataInstalacao,
-            data_vencimento: dataVencimento,
-            dia_vencimento: diaVencimento,
-            mes_referencia: mesReferencia,
-            status_id: statusPendente?.id || statusId || null,
-            created_by: user?.id || null,
-            updated_by: user?.id || null,
-          }]);
+          // INSERT - nova fatura do mês
+          const { data: novaFatura, error: faturaError } = await supabase
+            .from('faturas')
+            .insert([{
+              cobranca_id: cobrancaId,
+              mes_referencia: mesReferencia,
+              data_vencimento: dataVencimento,
+              valor,
+              status_id: statusId || statusPendente?.id || null,
+              observacoes: null,
+            }])
+            .select()
+            .single();
 
-          if (cobrancaError) {
-            errorDetails.push({ linha: i + 2, erro: `Erro ao criar cobrança: ${cobrancaError.message}` });
+          if (faturaError) {
+            errorDetails.push({ linha: i + 2, erro: `Erro ao criar fatura: ${faturaError.message}` });
             results.errors++;
           } else {
             results.success++;
+            // Adicionar à lista local para próximas iterações
+            faturasExistentes?.push({
+              id: novaFatura.id,
+              cobranca_id: cobrancaId,
+              mes_referencia: mesReferencia,
+              status_id: novaFatura.status_id
+            } as any);
           }
         }
       } catch (error) {
@@ -377,13 +425,13 @@ export default function Importar() {
     if (results.errors === 0) {
       toast({
         title: 'Importação concluída!',
-        description: `${results.success} criados, ${results.updated} atualizados.`,
+        description: `${results.success} faturas criadas, ${results.updated} atualizadas.`,
       });
     } else {
       toast({
         variant: 'destructive',
         title: 'Importação com erros',
-        description: `${results.success} criados, ${results.updated} atualizados, ${results.errors} erros.`,
+        description: `${results.success} criadas, ${results.updated} atualizadas, ${results.errors} erros.`,
       });
     }
   };
