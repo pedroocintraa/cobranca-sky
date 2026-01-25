@@ -1,194 +1,78 @@
 
-# Redesign Completo - Inspiração Dashboard Moderno
+# Plano: Sidebar Unificada com Toggle de Expansão
 
-## Visão Geral
+## Problema Atual
 
-Vou recriar completamente o layout baseado na imagem de referência que você enviou. O design atual será substituído por um visual moderno, elegante e profissional com sidebar dupla e paleta roxa/violeta.
+Atualmente temos dois sidebars separados aparecendo ao mesmo tempo:
+- **MiniSidebar**: Visível em `md:flex` (768px+)
+- **ExpandedSidebar**: Visível em `lg:flex` (1024px+)
 
----
+Resultado: Em telas grandes (1024px+), ambos aparecem lado a lado.
 
-## Principais Mudanças de Design
+## Solução
 
-### 1. Nova Paleta de Cores
+Criar uma **sidebar única** com estado de expansão controlado por um botão toggle. O mini sidebar só aparece quando o usuário minimiza o expandido.
 
-| Elemento | Cor Atual (Verde) | Nova Cor |
-|----------|-------------------|----------|
-| Primary | Verde (#16a34a) | Violeta (#6366f1) |
-| Accent 1 | Verde claro | Rosa coral (#f97316) |
-| Accent 2 | - | Rosa (#ec4899) |
-| Background | Branco puro | Cinza suave (#f8fafc) |
-| Sidebar | Branco | Branco com borda sutil |
+## Mudanças Planejadas
 
-### 2. Estrutura de Sidebar Dupla
+### 1. MainLayout.tsx - Estado de Expansão
+- Adicionar estado `sidebarCollapsed` com `useState`
+- Adicionar botão toggle no header para expandir/minimizar
+- Renderizar condicionalmente: se colapsado mostra Mini, senão mostra Expanded
 
-**Mini Sidebar (esquerda, 64px)**
-- Apenas ícones
-- Logo no topo
-- Navegação por ícones
-- Avatar no rodapé
+### 2. ExpandedSidebar.tsx - Remover Upgrade PRO
+- Remover o bloco do card "Upgrade PRO" (linhas 100-114)
+- Manter apenas a navegação e configurações
 
-**Sidebar Expandida (240px)**
-- Header com logo e versão
-- Menu com ícones + texto
-- Setas indicando submenus
-- Card de upgrade no final
-- Perfil do usuário no rodapé
+### 3. Comportamento Final
+```text
+Desktop (lg+):
+┌─────────────────────────────────────────────────┐
+│ [≡] Toggle                                      │
+├──────────────┬──────────────────────────────────┤
+│  Expanded    │                                  │
+│  Sidebar     │         Conteúdo                 │
+│  (240px)     │                                  │
+└──────────────┴──────────────────────────────────┘
 
-### 3. Dashboard Renovado
+Após clicar no toggle:
+┌─────────────────────────────────────────────────┐
+│ [≡] Toggle                                      │
+├──────┬──────────────────────────────────────────┤
+│ Mini │                                          │
+│(64px)│              Conteúdo                    │
+│      │                                          │
+└──────┴──────────────────────────────────────────┘
+```
 
-**Header**
-- Saudação personalizada ("Olá, [Nome]!")
-- Campo de busca global
+## Arquivos a Modificar
 
-**Cards de Métricas (3 colunas)**
-- Ícones em círculos com gradientes coloridos
-- Valores grandes e destacados
-- Indicadores de variação (setas + porcentagem)
-- Cores diferenciadas: roxo, coral, rosa
-
-**Seção de Gráficos**
-- Gráfico de barras (Overview mensal)
-- Gráfico de donut (Proporção de clientes)
-- Dropdown para seleção de período
-
-**Tabela de Cobranças**
-- Design limpo com imagens/ícones
-- Campo de busca integrado
-- Filtro de período
-- Hover states sutis
-
-### 4. Novos Componentes
-
-**Card de Métrica**
-- Ícone em círculo colorido
-- Label pequena
-- Valor grande
-- Indicador de variação
-
-**Card de Upgrade (sidebar)**
-- Gradiente laranja/rosa
-- Texto de CTA
-- Botão destacado
-
-**Gráfico de Barras**
-- Recharts já está instalado
-- Estilo minimalista
-- Destaque no mês atual
-
-**Gráfico de Donut**
-- Cores vibrantes
-- Percentual central
-- Legenda lateral
-
----
-
-## Arquivos a Criar/Modificar
-
-### Novos Componentes
-1. `src/components/layout/MiniSidebar.tsx` - Sidebar de ícones
-2. `src/components/layout/ExpandedSidebar.tsx` - Sidebar expandida
-3. `src/components/dashboard/MetricCard.tsx` - Card de métrica
-4. `src/components/dashboard/OverviewChart.tsx` - Gráfico de barras
-5. `src/components/dashboard/CustomersChart.tsx` - Gráfico de donut
-6. `src/components/dashboard/RecentCharges.tsx` - Tabela recente
-
-### Arquivos a Modificar
-7. `src/index.css` - Nova paleta de cores (violeta)
-8. `tailwind.config.ts` - Ajustes de tema
-9. `src/components/layout/MainLayout.tsx` - Layout com sidebar dupla
-10. `src/pages/Dashboard.tsx` - Redesign completo
-11. `src/pages/Auth.tsx` - Atualizar para nova paleta
-12. `src/components/ui/card.tsx` - Cantos mais arredondados
-13. `src/components/ui/button.tsx` - Novo estilo
-
----
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/layout/MainLayout.tsx` | Adicionar estado de colapso e renderização condicional |
+| `src/components/layout/ExpandedSidebar.tsx` | Remover card "Upgrade PRO" |
 
 ## Detalhes Técnicos
 
-### Nova Paleta CSS (index.css)
+### MainLayout.tsx
 ```text
-:root {
-  --primary: 239 84% 67%       /* Violeta #6366f1 */
-  --primary-foreground: 0 0% 100%
-  --accent-coral: 25 95% 53%   /* Coral #f97316 */
-  --accent-pink: 330 81% 60%   /* Rosa #ec4899 */
-  --background: 210 40% 98%    /* Cinza suave #f8fafc */
-  --card: 0 0% 100%
-  --border: 214 32% 91%        /* Cinza claro */
-  --radius: 1rem               /* 16px */
-}
+1. Adicionar: const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+2. No header: Adicionar botão com ícone PanelLeftClose/PanelLeftOpen
+3. Renderização condicional:
+   - Se sidebarCollapsed: mostrar MiniSidebar
+   - Se não: mostrar ExpandedSidebar
+4. Ambos com classe "hidden lg:flex" para desktop
 ```
 
-### Estrutura do Layout
+### ExpandedSidebar.tsx
 ```text
-┌──────┬──────────────┬─────────────────────────────────┐
-│ Mini │   Expanded   │                                 │
-│ Bar  │   Sidebar    │         Main Content            │
-│ 64px │    240px     │                                 │
-│      │              │   ┌─── Header ───────────────┐  │
-│ [●]  │  Dashboard   │   │ Olá, User!    [Search]   │  │
-│      │  Product     │   └─────────────────────────┘  │
-│ [◎]  │  Customers   │                                 │
-│ [◎]  │  Income      │   ┌────┐ ┌────┐ ┌────┐        │
-│ [◎]  │  ...         │   │$198k│ │$2.4k│ │$89k│       │
-│      │              │   └────┘ └────┘ └────┘        │
-│      │ ┌──────────┐ │                                 │
-│      │ │ Upgrade  │ │   ┌─── Chart ───┐ ┌─ Donut ─┐  │
-│      │ │   PRO    │ │   │             │ │         │  │
-│      │ └──────────┘ │   └─────────────┘ └─────────┘  │
-│      │              │                                 │
-│ [◎]  │ User Profile │   ┌─── Recent Table ─────────┐ │
-└──────┴──────────────┴───┴─────────────────────────────┘
+- Remover linhas 100-114 (div com gradient-coral e conteúdo do upgrade)
 ```
-
-### Ícones e Elementos Visuais
-- Ícones com stroke mais fino (lucide-react já usa isso)
-- Círculos de fundo para ícones de métricas com gradientes
-- Setas de navegação nos itens do menu
-- Avatar circular no perfil
-
-### Gráficos (Recharts)
-```text
-OverviewChart:
-- BarChart com 12 meses
-- Barra ativa destacada (mais escura)
-- Tooltip com valor
-- Cores: violeta claro/escuro
-
-CustomersChart:
-- PieChart (donut)
-- Cores: rosa, violeta, coral
-- Label central com percentual
-```
-
----
 
 ## Resultado Esperado
 
-- **Visual moderno e sofisticado** inspirado no exemplo
-- **Sidebar dupla** funcional e elegante
-- **Dashboard rico** com gráficos e métricas visuais
-- **Paleta violeta** profissional e contemporânea
-- **Muita respiração** (espaços em branco generosos)
-- **Cantos arredondados** maiores (16px)
-- **Sombras sutis** em cards
-- **Consistência** em toda a aplicação
-
----
-
-## Arquivos Finais
-
-| Arquivo | Ação | Descrição |
-|---------|------|-----------|
-| `src/index.css` | Modificar | Nova paleta violeta |
-| `tailwind.config.ts` | Modificar | Novos tokens de cor |
-| `src/components/layout/MainLayout.tsx` | Reescrever | Sidebar dupla |
-| `src/components/dashboard/MetricCard.tsx` | Criar | Card de métrica |
-| `src/components/dashboard/OverviewChart.tsx` | Criar | Gráfico de barras |
-| `src/components/dashboard/CustomersChart.tsx` | Criar | Gráfico de donut |
-| `src/components/dashboard/WelcomeHeader.tsx` | Criar | Header com saudação |
-| `src/pages/Dashboard.tsx` | Reescrever | Novo layout |
-| `src/pages/Auth.tsx` | Modificar | Nova paleta |
-| `src/components/ui/card.tsx` | Modificar | Cantos maiores |
-| `src/components/ui/button.tsx` | Modificar | Novo estilo |
-| `src/components/ui/input.tsx` | Modificar | Cantos maiores |
+- Sidebar única com toggle funcional
+- Mini sidebar aparece apenas quando expandido está minimizado
+- Sem duplicação de menus
+- Sem card "Upgrade PRO"
+- Transição suave entre estados
