@@ -109,20 +109,18 @@ export default function Auth() {
   }
 
   return (
-    <div className="flex min-h-screen w-full flex-col items-center justify-center gradient-verdant p-4">
+    <div className="flex min-h-screen w-full flex-col items-center justify-center bg-background p-4">
       <div className="mb-8 flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary shadow-md">
-          <Leaf className="h-7 w-7 text-primary-foreground" />
-        </div>
+        <Leaf className="h-10 w-10 text-primary" />
         <div>
-          <h1 className="text-2xl font-bold text-foreground">CRM Cobrança</h1>
-          <p className="text-sm text-muted-foreground">Sistema de gestão profissional</p>
+          <h1 className="text-xl font-semibold text-foreground">CRM Cobrança</h1>
+          <p className="text-sm text-muted-foreground">Sistema de gestão</p>
         </div>
       </div>
 
-      <Card className="w-full max-w-md border-border/50 shadow-card">
+      <Card className="w-full max-w-md shadow-lg">
         <CardHeader className="text-center pb-2">
-          <CardTitle className="text-xl font-semibold">Acesse sua conta</CardTitle>
+          <CardTitle className="text-lg font-semibold">Acesse sua conta</CardTitle>
           <CardDescription className="text-muted-foreground">
             Entre com suas credenciais ou crie uma nova conta
           </CardDescription>

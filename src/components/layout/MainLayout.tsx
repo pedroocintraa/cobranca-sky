@@ -69,12 +69,10 @@ export default function MainLayout() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <Sidebar className="border-r border-sidebar-border/60">
-          <SidebarHeader className="border-b border-sidebar-border/60 p-4">
+        <Sidebar className="border-r border-sidebar-border">
+          <SidebarHeader className="border-b border-sidebar-border p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
-                <Leaf className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <Leaf className="h-6 w-6 text-primary" />
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-sidebar-foreground">
                   CRM Cobrança
@@ -109,7 +107,7 @@ export default function MainLayout() {
                   {isAdmin && (
                     <>
                       <div className="my-3 px-3">
-                        <div className="h-px bg-sidebar-border/60" />
+                        <div className="h-px bg-sidebar-border" />
                       </div>
                       <p className="px-3 pb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                         Administração
@@ -137,7 +135,7 @@ export default function MainLayout() {
         </Sidebar>
 
         <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border bg-background px-4 lg:px-6">
+          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4 lg:px-6">
             <SidebarTrigger className="lg:hidden">
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
@@ -146,7 +144,7 @@ export default function MainLayout() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
                   <Avatar className="h-9 w-9">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
                       {getInitials(profile?.nome)}

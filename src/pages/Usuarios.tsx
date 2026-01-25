@@ -87,15 +87,15 @@ export default function Usuarios() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Gestão de Usuários</h1>
-          <p className="text-muted-foreground">Gerencie os acessos e permissões do sistema</p>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">Gestão de Usuários</h1>
+          <p className="text-sm text-muted-foreground mt-1">Gerencie os acessos e permissões do sistema</p>
         </div>
       </div>
 
-      <Card className="shadow-card">
+      <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
+          <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <Users className="h-5 w-5 text-muted-foreground" />
             Usuários
           </CardTitle>
           <div className="relative mt-4">
@@ -195,7 +195,7 @@ export default function Usuarios() {
                           <SelectValue placeholder="Selecione um papel" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent>
+                      <SelectContent className="bg-popover">
                         <SelectItem value="none">
                           <div className="flex items-center gap-2">
                             <ShieldX className="h-4 w-4 text-muted-foreground" />
