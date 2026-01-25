@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import {
   Sidebar,
@@ -29,11 +28,11 @@ import {
   Users,
   Receipt,
   Upload,
-  Settings,
   LogOut,
   Menu,
   Shield,
   Palette,
+  Leaf,
 } from 'lucide-react';
 
 const menuItems = [
@@ -51,7 +50,6 @@ const adminMenuItems = [
 export default function MainLayout() {
   const { profile, role, isAdmin, signOut } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const handleSignOut = async () => {
     await signOut();
@@ -71,11 +69,11 @@ export default function MainLayout() {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <Sidebar className="border-r border-sidebar-border">
-          <SidebarHeader className="border-b border-sidebar-border p-4">
+        <Sidebar className="border-r border-sidebar-border/60">
+          <SidebarHeader className="border-b border-sidebar-border/60 p-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
-                <Receipt className="h-5 w-5 text-primary-foreground" />
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary">
+                <Leaf className="h-5 w-5 text-primary-foreground" />
               </div>
               <div className="flex flex-col">
                 <span className="text-sm font-semibold text-sidebar-foreground">
@@ -88,21 +86,21 @@ export default function MainLayout() {
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="p-2">
+          <SidebarContent className="p-3">
             <SidebarGroup>
               <SidebarGroupContent>
-                <SidebarMenu>
+                <SidebarMenu className="space-y-1">
                   {menuItems.map((item) => (
                     <SidebarMenuItem key={item.title}>
                       <SidebarMenuButton asChild>
                         <NavLink
                           to={item.url}
                           end={item.url === '/'}
-                          className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+                          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sidebar-foreground/80 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
                           activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                         >
-                          <item.icon className="h-5 w-5" />
-                          <span>{item.title}</span>
+                          <item.icon className="h-4 w-4" />
+                          <span className="text-sm">{item.title}</span>
                         </NavLink>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -110,19 +108,22 @@ export default function MainLayout() {
 
                   {isAdmin && (
                     <>
-                      <div className="my-2 px-3">
-                        <div className="h-px bg-sidebar-border" />
+                      <div className="my-3 px-3">
+                        <div className="h-px bg-sidebar-border/60" />
                       </div>
+                      <p className="px-3 pb-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        Administração
+                      </p>
                       {adminMenuItems.map((item) => (
                         <SidebarMenuItem key={item.title}>
                           <SidebarMenuButton asChild>
                             <NavLink
                               to={item.url}
-                              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+                              className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sidebar-foreground/80 transition-all hover:bg-sidebar-accent hover:text-sidebar-foreground"
                               activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                             >
-                              <item.icon className="h-5 w-5" />
-                              <span>{item.title}</span>
+                              <item.icon className="h-4 w-4" />
+                              <span className="text-sm">{item.title}</span>
                             </NavLink>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -136,7 +137,7 @@ export default function MainLayout() {
         </Sidebar>
 
         <div className="flex flex-1 flex-col">
-          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background px-4 lg:px-6">
+          <header className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b border-border/60 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 px-4 lg:px-6">
             <SidebarTrigger className="lg:hidden">
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
@@ -145,9 +146,9 @@ export default function MainLayout() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="relative h-9 w-9 rounded-full">
+                <Button variant="ghost" className="relative h-9 w-9 rounded-full ring-2 ring-primary/20 hover:ring-primary/40 transition-all">
                   <Avatar className="h-9 w-9">
-                    <AvatarFallback className="bg-primary text-primary-foreground">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
                       {getInitials(profile?.nome)}
                     </AvatarFallback>
                   </Avatar>
@@ -165,7 +166,7 @@ export default function MainLayout() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
+                <DropdownMenuItem onClick={handleSignOut} className="text-destructive focus:text-destructive">
                   <LogOut className="mr-2 h-4 w-4" />
                   <span>Sair</span>
                 </DropdownMenuItem>
@@ -173,7 +174,7 @@ export default function MainLayout() {
             </DropdownMenu>
           </header>
 
-          <main className="flex-1 overflow-auto p-4 lg:p-6">
+          <main className="flex-1 overflow-auto p-4 lg:p-6 bg-background">
             <Outlet />
           </main>
         </div>
