@@ -10,7 +10,7 @@ interface StatusPagamento {
   nome: string;
 }
 
-interface Cobranca {
+interface Fatura {
   id: string;
   data_vencimento: string;
   status_id: string | null;
@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log("Iniciando atualização automática de status de cobranças...");
+    console.log("Iniciando atualização automática de status de faturas...");
 
     // Buscar status "Atrasado" e status que devem ser ignorados
     const { data: statusList, error: statusError } = await supabase
@@ -81,44 +81,44 @@ Deno.serve(async (req) => {
 
     console.log("Data de referência:", hojeStr);
 
-    // Buscar cobranças que NÃO estão Pagas ou Canceladas e têm vencimento anterior a hoje
+    // Buscar FATURAS que NÃO estão Pagas ou Canceladas e têm vencimento anterior a hoje
     let query = supabase
-      .from("cobrancas")
+      .from("faturas")
       .select("id, data_vencimento, status_id, status:status_pagamento(id, nome)")
       .lt("data_vencimento", hojeStr);
 
     // Excluir status Pago e Cancelado
     if (statusIgnorados.length > 0) {
-      // Incluir cobranças onde status_id é null OU não está nos ignorados
+      // Incluir faturas onde status_id é null OU não está nos ignorados
       query = query.or(`status_id.is.null,status_id.not.in.(${statusIgnorados.join(",")})`);
     }
 
-    const { data: cobrancas, error: cobrancasError } = await query;
+    const { data: faturas, error: faturasError } = await query;
 
-    if (cobrancasError) {
-      console.error("Erro ao buscar cobranças:", cobrancasError);
-      throw cobrancasError;
+    if (faturasError) {
+      console.error("Erro ao buscar faturas:", faturasError);
+      throw faturasError;
     }
 
-    console.log(`Encontradas ${cobrancas?.length || 0} cobranças para atualizar`);
+    console.log(`Encontradas ${faturas?.length || 0} faturas para atualizar`);
 
     let atualizadas = 0;
     let erros = 0;
 
-    // Atualizar cada cobrança para status "Atrasado"
-    for (const cobranca of cobrancas || []) {
+    // Atualizar cada fatura para status "Atrasado"
+    for (const fatura of faturas || []) {
       // Só atualiza se ainda não está como Atrasado
-      if (cobranca.status_id !== statusAtrasadoId) {
+      if (fatura.status_id !== statusAtrasadoId) {
         const { error: updateError } = await supabase
-          .from("cobrancas")
+          .from("faturas")
           .update({ status_id: statusAtrasadoId })
-          .eq("id", cobranca.id);
+          .eq("id", fatura.id);
 
         if (updateError) {
-          console.error(`Erro ao atualizar cobrança ${cobranca.id}:`, updateError);
+          console.error(`Erro ao atualizar fatura ${fatura.id}:`, updateError);
           erros++;
         } else {
-          console.log(`Cobrança ${cobranca.id} atualizada para Atrasado`);
+          console.log(`Fatura ${fatura.id} atualizada para Atrasado`);
           atualizadas++;
         }
       }
@@ -126,9 +126,9 @@ Deno.serve(async (req) => {
 
     const resultado = {
       success: true,
-      message: `Atualização concluída: ${atualizadas} cobranças atualizadas para Atrasado`,
+      message: `Atualização concluída: ${atualizadas} faturas atualizadas para Atrasado`,
       detalhes: {
-        total_verificadas: cobrancas?.length || 0,
+        total_verificadas: faturas?.length || 0,
         atualizadas,
         erros,
         data_referencia: hojeStr,
