@@ -1,145 +1,194 @@
 
-# Plano de Redesign Profissional - Visual Corporativo Maduro
+# Redesign Completo - Inspiração Dashboard Moderno
 
-## Diagnóstico Atual
+## Visão Geral
 
-Após análise detalhada da interface, identifiquei os seguintes problemas que contribuem para a aparência "infantil" e "com cara de IA":
-
-| Problema | Descrição | Impacto Visual |
-|----------|-----------|----------------|
-| Cantos muito uniformes | Todos os elementos usam `rounded-md` (8px), criando visual genérico | Aparência de template |
-| Cores muito saturadas | Verde primário muito vibrante para contexto corporativo | Visual "alegre demais" |
-| Ícones em caixas | Ícones dentro de quadrados coloridos parecem emojis | Infantil |
-| Falta de hierarquia | Todos os elementos têm o mesmo peso visual | Sem personalidade |
-| Sombras uniformes | Mesma sombra em todos os cards | Plano/genérico |
-| Sobreposição de elementos | Dropdowns e popovers sem z-index adequado | Problema funcional |
+Vou recriar completamente o layout baseado na imagem de referência que você enviou. O design atual será substituído por um visual moderno, elegante e profissional com sidebar dupla e paleta roxa/violeta.
 
 ---
 
-## Conceito: "Enterprise Minimal"
+## Principais Mudanças de Design
 
-Inspiração em sistemas como Salesforce, HubSpot e Pipedrive - interfaces que transmitem **confiança e maturidade** sem serem "divertidas":
+### 1. Nova Paleta de Cores
 
-- Paleta com **verde dessaturado** como cor de destaque (não primária)
-- Fundo com **leve textura/gradiente** para profundidade
-- **Tipografia forte** com hierarquia clara
-- **Ícones inline** (sem caixas coloridas)
-- **Bordas finas** e espaçamento generoso
-- Cards com **cantos mais suaves** (12px) mas inputs mais estruturados (6px)
+| Elemento | Cor Atual (Verde) | Nova Cor |
+|----------|-------------------|----------|
+| Primary | Verde (#16a34a) | Violeta (#6366f1) |
+| Accent 1 | Verde claro | Rosa coral (#f97316) |
+| Accent 2 | - | Rosa (#ec4899) |
+| Background | Branco puro | Cinza suave (#f8fafc) |
+| Sidebar | Branco | Branco com borda sutil |
+
+### 2. Estrutura de Sidebar Dupla
+
+**Mini Sidebar (esquerda, 64px)**
+- Apenas ícones
+- Logo no topo
+- Navegação por ícones
+- Avatar no rodapé
+
+**Sidebar Expandida (240px)**
+- Header com logo e versão
+- Menu com ícones + texto
+- Setas indicando submenus
+- Card de upgrade no final
+- Perfil do usuário no rodapé
+
+### 3. Dashboard Renovado
+
+**Header**
+- Saudação personalizada ("Olá, [Nome]!")
+- Campo de busca global
+
+**Cards de Métricas (3 colunas)**
+- Ícones em círculos com gradientes coloridos
+- Valores grandes e destacados
+- Indicadores de variação (setas + porcentagem)
+- Cores diferenciadas: roxo, coral, rosa
+
+**Seção de Gráficos**
+- Gráfico de barras (Overview mensal)
+- Gráfico de donut (Proporção de clientes)
+- Dropdown para seleção de período
+
+**Tabela de Cobranças**
+- Design limpo com imagens/ícones
+- Campo de busca integrado
+- Filtro de período
+- Hover states sutis
+
+### 4. Novos Componentes
+
+**Card de Métrica**
+- Ícone em círculo colorido
+- Label pequena
+- Valor grande
+- Indicador de variação
+
+**Card de Upgrade (sidebar)**
+- Gradiente laranja/rosa
+- Texto de CTA
+- Botão destacado
+
+**Gráfico de Barras**
+- Recharts já está instalado
+- Estilo minimalista
+- Destaque no mês atual
+
+**Gráfico de Donut**
+- Cores vibrantes
+- Percentual central
+- Legenda lateral
 
 ---
 
-## Mudanças Detalhadas
+## Arquivos a Criar/Modificar
 
-### 1. Paleta de Cores Refinada (index.css)
+### Novos Componentes
+1. `src/components/layout/MiniSidebar.tsx` - Sidebar de ícones
+2. `src/components/layout/ExpandedSidebar.tsx` - Sidebar expandida
+3. `src/components/dashboard/MetricCard.tsx` - Card de métrica
+4. `src/components/dashboard/OverviewChart.tsx` - Gráfico de barras
+5. `src/components/dashboard/CustomersChart.tsx` - Gráfico de donut
+6. `src/components/dashboard/RecentCharges.tsx` - Tabela recente
 
+### Arquivos a Modificar
+7. `src/index.css` - Nova paleta de cores (violeta)
+8. `tailwind.config.ts` - Ajustes de tema
+9. `src/components/layout/MainLayout.tsx` - Layout com sidebar dupla
+10. `src/pages/Dashboard.tsx` - Redesign completo
+11. `src/pages/Auth.tsx` - Atualizar para nova paleta
+12. `src/components/ui/card.tsx` - Cantos mais arredondados
+13. `src/components/ui/button.tsx` - Novo estilo
+
+---
+
+## Detalhes Técnicos
+
+### Nova Paleta CSS (index.css)
 ```text
-Atual                          Novo
---primary: 142 55% 35%    ->   142 40% 40% (menos saturado)
---background: 0 0% 98%    ->   210 20% 98% (tom levemente azulado)
---muted: 150 8% 94%       ->   210 15% 95% (neutro frio)
---border: 220 13% 88%     ->   210 15% 85% (mais visível)
+:root {
+  --primary: 239 84% 67%       /* Violeta #6366f1 */
+  --primary-foreground: 0 0% 100%
+  --accent-coral: 25 95% 53%   /* Coral #f97316 */
+  --accent-pink: 330 81% 60%   /* Rosa #ec4899 */
+  --background: 210 40% 98%    /* Cinza suave #f8fafc */
+  --card: 0 0% 100%
+  --border: 214 32% 91%        /* Cinza claro */
+  --radius: 1rem               /* 16px */
+}
 ```
 
-### 2. Cards Mais Sofisticados (card.tsx)
-
-- Cantos: `rounded-lg` para `rounded-xl` (12px)
-- Borda: mais sutil com `border-border/60`
-- Header: remover borda inferior, usar apenas padding
-- Sombra: mais suave e elegante
-
-### 3. Ícones Profissionais (Dashboard, Pages)
-
-**Antes:**
-```jsx
-<div className="rounded-md p-2 bg-primary/10">
-  <Icon className="h-4 w-4 text-primary" />
-</div>
+### Estrutura do Layout
+```text
+┌──────┬──────────────┬─────────────────────────────────┐
+│ Mini │   Expanded   │                                 │
+│ Bar  │   Sidebar    │         Main Content            │
+│ 64px │    240px     │                                 │
+│      │              │   ┌─── Header ───────────────┐  │
+│ [●]  │  Dashboard   │   │ Olá, User!    [Search]   │  │
+│      │  Product     │   └─────────────────────────┘  │
+│ [◎]  │  Customers   │                                 │
+│ [◎]  │  Income      │   ┌────┐ ┌────┐ ┌────┐        │
+│ [◎]  │  ...         │   │$198k│ │$2.4k│ │$89k│       │
+│      │              │   └────┘ └────┘ └────┘        │
+│      │ ┌──────────┐ │                                 │
+│      │ │ Upgrade  │ │   ┌─── Chart ───┐ ┌─ Donut ─┐  │
+│      │ │   PRO    │ │   │             │ │         │  │
+│      │ └──────────┘ │   └─────────────┘ └─────────┘  │
+│      │              │                                 │
+│ [◎]  │ User Profile │   ┌─── Recent Table ─────────┐ │
+└──────┴──────────────┴───┴─────────────────────────────┘
 ```
 
-**Depois:**
-```jsx
-<Icon className="h-5 w-5 text-muted-foreground" />
+### Ícones e Elementos Visuais
+- Ícones com stroke mais fino (lucide-react já usa isso)
+- Círculos de fundo para ícones de métricas com gradientes
+- Setas de navegação nos itens do menu
+- Avatar circular no perfil
+
+### Gráficos (Recharts)
+```text
+OverviewChart:
+- BarChart com 12 meses
+- Barra ativa destacada (mais escura)
+- Tooltip com valor
+- Cores: violeta claro/escuro
+
+CustomersChart:
+- PieChart (donut)
+- Cores: rosa, violeta, coral
+- Label central com percentual
 ```
-
-Ícones inline sem caixas, usando cor neutra.
-
-### 4. Badges Refinados (badge.tsx)
-
-- Menos padding: `px-2.5 py-0.5`
-- Borda sutil: adicionar `border` em todas variantes
-- Cantos: manter `rounded-md`
-- Tipografia: `font-medium` (não bold)
-
-### 5. Botões Mais Elegantes (button.tsx)
-
-- Remover `shadow-sm` do estado default
-- Adicionar apenas no hover
-- Transição mais suave (200ms)
-- Variante primary com tom mais escuro no hover
-
-### 6. Inputs Estruturados (input.tsx)
-
-- Manter `rounded-md` (diferente dos cards)
-- Borda mais definida no focus
-- Altura consistente `h-10`
-
-### 7. Tabelas Profissionais (table.tsx)
-
-- Header com fundo mais sutil
-- Linhas alternadas (opcional via classe)
-- Hover mais discreto
-- Células com padding mais generoso
-
-### 8. Correção de Sobreposição
-
-- Adicionar `z-50` explícito nos popovers
-- Garantir `bg-popover` em todos os dropdowns
-- Verificar Portal usage nos componentes
-
-### 9. Layout e Tipografia (MainLayout, Pages)
-
-- Títulos: `text-xl font-semibold` (não bold)
-- Subtítulos: `text-sm text-muted-foreground`
-- Sidebar: tom mais neutro
-- Header: mais limpo, menos elementos
-
-### 10. Página de Login (Auth.tsx)
-
-- Gradiente mais sutil
-- Logo sem caixa quadrada (só ícone)
-- Card com sombra mais elegante
-- Inputs maiores (`h-11`)
-
----
-
-## Arquivos a Modificar
-
-1. **src/index.css** - Paleta refinada e variáveis de design
-2. **src/components/ui/card.tsx** - Cantos mais suaves, sombra elegante
-3. **src/components/ui/badge.tsx** - Visual mais corporativo
-4. **src/components/ui/button.tsx** - Sombras apenas no hover
-5. **src/components/ui/input.tsx** - Consistência visual
-6. **src/components/ui/table.tsx** - Tabela profissional
-7. **src/components/ui/tabs.tsx** - Visual mais limpo
-8. **src/components/ui/select.tsx** - Z-index e background corretos
-9. **src/components/ui/popover.tsx** - Correção de sobreposição
-10. **src/components/ui/dialog.tsx** - Cantos mais suaves
-11. **src/pages/Dashboard.tsx** - Ícones inline, layout refinado
-12. **src/pages/Auth.tsx** - Login mais elegante
-13. **src/pages/Cobrancas.tsx** - Consistência visual
-14. **src/pages/Clientes.tsx** - Consistência visual
-15. **src/pages/Usuarios.tsx** - Consistência visual
-16. **src/components/layout/MainLayout.tsx** - Sidebar mais neutra
-17. **tailwind.config.ts** - Ajuste de radius e cores
 
 ---
 
 ## Resultado Esperado
 
-- Interface com visual **corporativo e maduro**
-- Sem aparência de "template de IA"
-- Hierarquia visual clara e intencional
-- Cores sóbrias que transmitem confiança
-- Problema de sobreposição corrigido
-- Consistência em toda a aplicação
+- **Visual moderno e sofisticado** inspirado no exemplo
+- **Sidebar dupla** funcional e elegante
+- **Dashboard rico** com gráficos e métricas visuais
+- **Paleta violeta** profissional e contemporânea
+- **Muita respiração** (espaços em branco generosos)
+- **Cantos arredondados** maiores (16px)
+- **Sombras sutis** em cards
+- **Consistência** em toda a aplicação
+
+---
+
+## Arquivos Finais
+
+| Arquivo | Ação | Descrição |
+|---------|------|-----------|
+| `src/index.css` | Modificar | Nova paleta violeta |
+| `tailwind.config.ts` | Modificar | Novos tokens de cor |
+| `src/components/layout/MainLayout.tsx` | Reescrever | Sidebar dupla |
+| `src/components/dashboard/MetricCard.tsx` | Criar | Card de métrica |
+| `src/components/dashboard/OverviewChart.tsx` | Criar | Gráfico de barras |
+| `src/components/dashboard/CustomersChart.tsx` | Criar | Gráfico de donut |
+| `src/components/dashboard/WelcomeHeader.tsx` | Criar | Header com saudação |
+| `src/pages/Dashboard.tsx` | Reescrever | Novo layout |
+| `src/pages/Auth.tsx` | Modificar | Nova paleta |
+| `src/components/ui/card.tsx` | Modificar | Cantos maiores |
+| `src/components/ui/button.tsx` | Modificar | Novo estilo |
+| `src/components/ui/input.tsx` | Modificar | Cantos maiores |
