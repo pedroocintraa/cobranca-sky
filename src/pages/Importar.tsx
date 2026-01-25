@@ -65,14 +65,14 @@ const defaultMapping: ColumnMapping = {
 };
 
 const fieldLabels: Record<keyof ColumnMapping, string> = {
-  nome: 'Nome do Cliente *',
-  cpf: 'CPF',
+  cpf: 'CPF *',
+  nome: 'Nome do Cliente',
   telefone: 'Telefone',
   email: 'Email',
   numero_proposta: 'Nº Proposta',
-  valor: 'Valor *',
+  valor: 'Valor',
   data_instalacao: 'Data Instalação',
-  data_vencimento: 'Data Vencimento *',
+  data_vencimento: 'Data Vencimento',
   status: 'Status',
 };
 
@@ -214,11 +214,11 @@ export default function Importar() {
   };
 
   const handleImport = async () => {
-    if (!mapping.nome || !mapping.valor || !mapping.data_vencimento) {
+    if (!mapping.cpf) {
       toast({
         variant: 'destructive',
-        title: 'Campos obrigatórios',
-        description: 'Mapeie os campos Nome, Valor e Data de Vencimento.',
+        title: 'Campo obrigatório',
+        description: 'Mapeie o campo CPF.',
       });
       return;
     }
@@ -233,27 +233,28 @@ export default function Importar() {
       setProgress(Math.round(((i + 1) / data.length) * 100));
 
       try {
-        const nome = row[mapping.nome]?.trim();
-        const cpf = row[mapping.cpf]?.trim() || null;
-        const telefone = row[mapping.telefone]?.trim() || null;
-        const email = row[mapping.email]?.trim() || null;
-        const numeroProposta = row[mapping.numero_proposta]?.trim() || null;
-        const valor = parseValor(row[mapping.valor] || '');
-        const dataInstalacao = parseDate(row[mapping.data_instalacao] || '');
-        const dataVencimento = parseDate(row[mapping.data_vencimento] || '');
-        const statusNome = row[mapping.status]?.trim()?.toLowerCase();
-
-        if (!nome || !dataVencimento) {
-          errorDetails.push({ linha: i + 2, erro: 'Nome ou data de vencimento inválidos' });
+        const cpf = row[mapping.cpf]?.trim();
+        
+        if (!cpf) {
+          errorDetails.push({ linha: i + 2, erro: 'CPF inválido ou vazio' });
           results.errors++;
           continue;
         }
+        
+        const nome = mapping.nome ? row[mapping.nome]?.trim() : cpf;
+        const telefone = mapping.telefone ? row[mapping.telefone]?.trim() || null : null;
+        const email = mapping.email ? row[mapping.email]?.trim() || null : null;
+        const numeroProposta = mapping.numero_proposta ? row[mapping.numero_proposta]?.trim() || null : null;
+        const valor = mapping.valor ? parseValor(row[mapping.valor] || '') : 0;
+        const dataInstalacao = mapping.data_instalacao ? parseDate(row[mapping.data_instalacao] || '') : null;
+        const dataVencimento = mapping.data_vencimento 
+          ? parseDate(row[mapping.data_vencimento] || '') 
+          : new Date().toISOString().split('T')[0];
+        const statusNome = mapping.status ? row[mapping.status]?.trim()?.toLowerCase() : null;
 
-        // Find or create cliente
+        // Find or create cliente by CPF
         let clienteId: string | null = null;
-        const existingCliente = clientes?.find(
-          (c) => (cpf && c.cpf === cpf) || c.nome.toLowerCase() === nome.toLowerCase()
-        );
+        const existingCliente = clientes?.find((c) => c.cpf === cpf);
 
         if (existingCliente) {
           clienteId = existingCliente.id;
