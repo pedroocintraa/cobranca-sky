@@ -407,17 +407,17 @@ export default function Importar() {
                 <div key={field} className="space-y-2">
                   <label className="text-sm font-medium">{fieldLabels[field]}</label>
                   <Select
-                    value={mapping[field]}
+                    value={mapping[field] || '__none__'}
                     onValueChange={(value) =>
-                      setMapping((prev) => ({ ...prev, [field]: value }))
+                      setMapping((prev) => ({ ...prev, [field]: value === '__none__' ? '' : value }))
                     }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione a coluna" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
-                      <SelectItem value="">Não mapeado</SelectItem>
-                      {headers.map((header) => (
+                      <SelectItem value="__none__">Não mapeado</SelectItem>
+                      {headers.filter(h => h && h.trim() !== '').map((header) => (
                         <SelectItem key={header} value={header}>
                           {header}
                         </SelectItem>
