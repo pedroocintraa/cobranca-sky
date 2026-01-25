@@ -215,10 +215,10 @@ export default function Cobrancas() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-foreground tracking-tight">Cobranças</h1>
+          <h1 className="text-xl font-semibold text-foreground tracking-tight">Cobranças</h1>
           <p className="text-sm text-muted-foreground mt-1">Gerencie suas cobranças</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -451,10 +451,10 @@ export default function Cobrancas() {
         </Dialog>
       </div>
 
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2 text-base font-medium">
+            <CardTitle className="flex items-center gap-2 text-sm font-medium">
               <Receipt className="h-5 w-5 text-muted-foreground" />
               Lista de Cobranças
             </CardTitle>

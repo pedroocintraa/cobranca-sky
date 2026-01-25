@@ -45,29 +45,27 @@ function MetricCard({
   variant?: 'default' | 'success' | 'warning' | 'destructive';
   isLoading?: boolean;
 }) {
-  const variantStyles = {
-    default: 'bg-primary/10 text-primary',
-    success: 'bg-success/10 text-success',
-    warning: 'bg-warning/10 text-warning',
-    destructive: 'bg-destructive/10 text-destructive',
+  const variantColors = {
+    default: 'text-primary',
+    success: 'text-success',
+    warning: 'text-warning',
+    destructive: 'text-destructive',
   };
 
   return (
-    <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 border-b-0">
+    <Card className="hover:shadow-md transition-shadow duration-200">
+      <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={`rounded-md p-2 ${variantStyles[variant]}`}>
-          <Icon className="h-4 w-4" />
-        </div>
+        <Icon className={`h-5 w-5 ${variantColors[variant]}`} />
       </CardHeader>
       <CardContent className="pt-0">
         {isLoading ? (
           <Skeleton className="h-8 w-24" />
         ) : (
           <>
-            <div className="text-2xl font-bold text-foreground">{value}</div>
+            <div className="text-2xl font-semibold text-foreground">{value}</div>
             {subValue && (
               <p className="text-xs text-muted-foreground mt-1">{subValue}</p>
             )}
@@ -129,14 +127,14 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground tracking-tight">Dashboard</h1>
+        <h1 className="text-xl font-semibold text-foreground tracking-tight">Dashboard</h1>
         <p className="text-sm text-muted-foreground mt-1">Visão geral das cobranças</p>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Total de Cobranças"
           value={metrics?.totalCobrancas ?? 0}
@@ -171,25 +169,25 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-5 sm:grid-cols-2">
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center gap-2 border-b-0">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
             <Calendar className="h-5 w-5 text-warning" />
-            <CardTitle className="text-base font-medium">Vencendo Hoje</CardTitle>
+            <CardTitle className="text-sm font-medium">Vencendo Hoje</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-warning">
+            <div className="text-3xl font-semibold text-warning">
               {metrics?.vencendoHoje ?? 0}
             </div>
           </CardContent>
         </Card>
-        <Card className="shadow-sm">
-          <CardHeader className="flex flex-row items-center gap-2 border-b-0">
+        <Card>
+          <CardHeader className="flex flex-row items-center gap-3">
             <Clock className="h-5 w-5 text-primary" />
-            <CardTitle className="text-base font-medium">Próximos 7 dias</CardTitle>
+            <CardTitle className="text-sm font-medium">Próximos 7 dias</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-primary">
+            <div className="text-3xl font-semibold text-primary">
               {metrics?.vencendo7Dias ?? 0}
             </div>
           </CardContent>
@@ -197,9 +195,9 @@ export default function Dashboard() {
       </div>
 
       {/* Upcoming Table */}
-      <Card className="shadow-sm">
+      <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="flex items-center justify-between text-base font-medium">
+          <CardTitle className="flex items-center justify-between text-sm font-medium">
             <span>Próximos Vencimentos</span>
             <Link
               to="/cobrancas"
