@@ -1,391 +1,148 @@
 
-# Plano: Agendamento CRON, Filtro por Número de Fatura e Mensagens sem Valor
+# Plano: Tempo de Disparo Configuravel pelo Usuario
 
-## Visão Geral
+## Visao Geral
 
-Este plano implementa três funcionalidades solicitadas:
-
-1. **Agendamento automático com CRON**: Disparar lotes de cobrança em dias e horários específicos
-2. **Mensagens sem valor + Confirmação de CPF**: Remover o valor das mensagens e incluir confirmação com os 5 últimos dígitos do CPF
-3. **Filtro por número de fatura**: Permitir filtrar por fatura 1, 2, 3, etc. (ordem cronológica de vencimento por cliente)
+O usuario podera definir livremente o tempo entre o envio de uma mensagem e outra, em segundos. Isso permite configuracoes como 30 segundos, 60 segundos, 300 segundos (5 minutos), etc.
 
 ---
 
-## 1. Agendamento Automático com CRON
+## Situacao Atual
 
-### Conceito
-
-O sistema permitirá agendar a geração de lotes de cobrança para rodar automaticamente em dias e horários específicos, usando pg_cron do Supabase.
-
-### Nova Tabela: `configuracoes_cobranca`
-
-Armazenará as configurações de agendamento:
-
-| Coluna | Tipo | Descrição |
-|--------|------|-----------|
-| id | UUID | Identificador único |
-| cron_expression | TEXT | Expressão CRON (ex: "0 8 * * 1-5" = 8h, seg-sex) |
-| dias_atraso_minimo | INTEGER | Dias mínimos de atraso |
-| incluir_atrasados | BOOLEAN | Incluir faturas atrasadas |
-| incluir_pendentes | BOOLEAN | Incluir faturas pendentes |
-| filtro_numero_fatura | INTEGER[] | Array de números de fatura (1, 2, 3...) |
-| ativo | BOOLEAN | Se o agendamento está ativo |
-| ultima_execucao | TIMESTAMPTZ | Data/hora da última execução |
-| created_by | UUID | Usuário que criou |
-
-### Fluxo do CRON
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│                          AGENDAMENTO CRON                               │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌───────────────────┐                                                  │
-│  │ pg_cron trigger   │                                                  │
-│  │ (ex: 8h seg-sex)  │                                                  │
-│  └─────────┬─────────┘                                                  │
-│            │                                                            │
-│            ▼                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Edge Function: executar-cron-cobranca                             │ │
-│  │ - Ler configurações ativas                                        │ │
-│  │ - Para cada config, chamar gerar-lote-automatico                  │ │
-│  │ - Atualizar ultima_execucao                                       │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│            │                                                            │
-│            ▼                                                            │
-│  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ Lote criado com status "aguardando_aprovacao"                     │ │
-│  │ Admin recebe notificação para revisar e aprovar                   │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Interface de Configuração
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  AGENDAMENTO AUTOMÁTICO                                          [✓]   │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  Frequência:          [Diariamente ▼]                                   │
-│  Horário:             [08:00]                                           │
-│  Dias da semana:      [✓] Seg [✓] Ter [✓] Qua [✓] Qui [✓] Sex [ ] Sab  │
-│                                                                         │
-│  Filtros:                                                               │
-│  Dias Atraso Min:     [7]                                               │
-│  Número da Fatura:    [✓] 1ª [✓] 2ª [✓] 3ª [ ] 4ª+ (selecionar)        │
-│  Incluir:             [✓] Atrasados  [ ] Pendentes                      │
-│                                                                         │
-│  Última execução: 25/01/2026 às 08:00 - 45 faturas                     │
-│                                                                         │
-│                                    [Salvar] [Executar Agora]            │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 2. Mensagens sem Valor + Confirmação de CPF
-
-### Alteração no Prompt da IA
-
-O prompt atual inclui o valor total. Será alterado para:
-- Remover menção ao valor
-- Adicionar confirmação de CPF (últimos 5 dígitos)
-
-### Antes (atual)
-
-```text
-CONTEXTO:
-- Nome: João
-- Faturas em aberto: 3
-- Valor total: R$ 450,00    <-- REMOVER
-- Meses atrasados: Nov, Dez, Jan
-```
-
-### Depois (novo)
-
-```text
-CONTEXTO:
-- Nome: João
-- Faturas em aberto: 3
-- Meses atrasados: Nov, Dez, Jan
-- CPF (últimos 5 dígitos): *****78472   <-- ADICIONAR
-```
-
-### Novo Prompt para a IA
-
-```text
-Você é um assistente de cobrança educado e profissional.
-Gere UMA mensagem de WhatsApp para cobrar o cliente.
-
-CONTEXTO:
-- Nome: {primeiroNome}
-- Faturas em aberto: {quantidadeFaturas}
-- Meses atrasados: {mesesAtrasados}
-- Dias de atraso: {diasAtraso}
-- Tipo de cobrança: {tipoCobranca}
-- CPF para confirmação: *****{ultimosCincoCPF}
-
-REGRAS IMPORTANTES:
-- Seja cordial mas objetivo
-- Use o primeiro nome do cliente
-- Mencione a quantidade de parcelas em aberto
-- NÃO mencione valores em reais
-- Peça para o cliente confirmar os últimos 5 dígitos do CPF
-- Inclua opção de contato para negociação
-- Máximo 280 caracteres
-- Não use emojis excessivos (máximo 2)
-- NÃO inclua links ou URLs
-- Termine com uma pergunta ou chamada para ação
-```
-
-### Exemplo de Mensagem Gerada
-
-**Antes:**
-> "Olá João! Identificamos 3 parcelas em aberto (Nov, Dez, Jan) totalizando R$ 450,00. Podemos ajudar a regularizar? Responda ou ligue (XX) XXXX-XXXX"
-
-**Depois:**
-> "Olá João! Identificamos 3 parcelas em aberto (Nov, Dez, Jan). Para sua segurança, confirme seu CPF final *****78472. Podemos ajudar a regularizar? Responda esta mensagem."
-
-### Função para Mascarar CPF
+O tempo entre mensagens esta fixo em 1 segundo no codigo:
 
 ```typescript
-function mascararCPF(cpf: string): string {
-  if (!cpf) return "*****00000";
-  // Remove caracteres não numéricos
-  const digits = cpf.replace(/\D/g, '');
-  // Pega os últimos 5 dígitos
-  const ultimos5 = digits.slice(-5).padStart(5, '0');
-  return `*****${ultimos5}`;
+// supabase/functions/processar-lote/index.ts - Linha 118
+await delay(1000); // 1 segundo fixo
+```
+
+---
+
+## Solucao Proposta
+
+### Interface de Configuracao
+
+```text
++----------------------------------------------------------+
+|  CONFIGURACOES DE ENVIO                                  |
+|                                                          |
+|  Intervalo entre mensagens (segundos):                   |
+|  +------------------+                                    |
+|  |       30         |  segundos                          |
+|  +------------------+                                    |
+|                                                          |
+|  Exemplos: 30s = 2 msg/min | 60s = 1 msg/min            |
+|            300s (5min) = 12 msg/hora                     |
++----------------------------------------------------------+
+```
+
+O usuario digita o valor desejado em segundos (minimo 1 segundo).
+
+---
+
+## Arquivos a Modificar
+
+### 1. Migracao SQL
+
+Adicionar coluna `intervalo_envio_segundos` na tabela `configuracoes_cobranca`:
+
+```sql
+ALTER TABLE public.configuracoes_cobranca 
+ADD COLUMN IF NOT EXISTS intervalo_envio_segundos INTEGER NOT NULL DEFAULT 1;
+
+COMMENT ON COLUMN public.configuracoes_cobranca.intervalo_envio_segundos 
+IS 'Intervalo em segundos entre o envio de cada mensagem';
+```
+
+### 2. Edge Function: processar-lote/index.ts
+
+Modificar para:
+- Buscar a configuracao `intervalo_envio_segundos` do banco
+- Converter para milissegundos e usar no delay
+
+```typescript
+// Buscar configuracao de intervalo
+const { data: config } = await supabase
+  .from("configuracoes_cobranca")
+  .select("intervalo_envio_segundos")
+  .limit(1)
+  .maybeSingle();
+
+// Converter segundos para milissegundos (padrao 1 segundo)
+const intervaloMs = (config?.intervalo_envio_segundos || 1) * 1000;
+
+// No loop de envio
+await delay(intervaloMs);
+```
+
+### 3. Hook: useAgendamentoCobranca.tsx
+
+Adicionar `intervalo_envio_segundos` ao tipo e a mutacao:
+
+```typescript
+export interface ConfiguracaoCobranca {
+  // ... campos existentes
+  intervalo_envio_segundos: number;
 }
+```
 
-// Exemplo:
-// mascararCPF("238.725.784-72") => "*****78472"
-// mascararCPF("23872578472")    => "*****78472"
+### 4. Componente: AgendamentoCard.tsx
+
+Adicionar Input numerico para configurar o intervalo:
+
+```tsx
+<div className="space-y-2">
+  <Label htmlFor="intervalo">Intervalo entre mensagens (segundos)</Label>
+  <Input
+    id="intervalo"
+    type="number"
+    min={1}
+    max={3600}
+    value={intervaloSegundos}
+    onChange={(e) => setIntervaloSegundos(parseInt(e.target.value) || 1)}
+  />
+  <p className="text-xs text-muted-foreground">
+    Tempo de espera entre cada mensagem enviada
+  </p>
+</div>
 ```
 
 ---
 
-## 3. Filtro por Número de Fatura
+## Exemplos de Configuracao
 
-### Conceito
-
-Cada cliente pode ter várias faturas em aberto. O "número da fatura" representa a ordem cronológica:
-- Fatura 1 = primeira fatura em aberto (mais antiga)
-- Fatura 2 = segunda fatura em aberto
-- Fatura 3 = terceira fatura em aberto
-- E assim por diante
-
-### Exemplos dos Dados Reais
-
-Com base nos dados do banco:
-- **Braz Ribeiro Do Carmo**: Fatura 1 (Nov/25), Fatura 2 (Dez/25), Fatura 3 (Jan/26)
-- **Lucineide De Amorim Silva**: Fatura 1 (Nov/25), Fatura 2 (Dez/25), Fatura 3 (Jan/26)
-
-### Casos de Uso
-
-| Filtro | Descrição | Uso |
-|--------|-----------|-----|
-| Fatura 1 apenas | Só primeira fatura de cada cliente | Primeiro contato, cobrança leve |
-| Fatura 2 apenas | Segunda fatura em diante | Segundo aviso |
-| Fatura 3+ | Três ou mais faturas | Cobrança mais firme |
-| Faturas 1 e 2 | Até 2 faturas | Cobranças moderadas |
-
-### Interface de Filtro
-
-Na criação de lote (manual ou automático), adicionar:
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  FILTROS                                                                │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  Status:              [✓] Atrasado  [ ] Pendente                        │
-│  Dias Atraso Min:     [7 dias ▼]                                        │
-│                                                                         │
-│  Número da Fatura:                                                      │
-│  ┌────────────────────────────────────────────────────────────────────┐│
-│  │ [✓] 1ª Fatura  [✓] 2ª Fatura  [ ] 3ª Fatura  [ ] 4ª+ Faturas     ││
-│  │                                                                    ││
-│  │ Ou especifique: [1-3] (ex: "1" ou "1-3" ou "2,3")                 ││
-│  └────────────────────────────────────────────────────────────────────┘│
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
-
-### Lógica de Cálculo do Número da Fatura
-
-```sql
--- Para cada cliente, enumerar as faturas por ordem de vencimento
-SELECT 
-  f.*,
-  ROW_NUMBER() OVER (
-    PARTITION BY cl.id 
-    ORDER BY f.data_vencimento ASC
-  ) as numero_fatura
-FROM faturas f
-JOIN cobrancas co ON f.cobranca_id = co.id
-JOIN clientes cl ON co.cliente_id = cl.id
-WHERE f.status_id IN (SELECT id FROM status_pagamento WHERE nome IN ('Pendente', 'Atrasado'))
-```
-
-### Hook Atualizado: useFaturasEmAberto
-
-O hook será atualizado para:
-1. Calcular o número da fatura de cada cliente
-2. Aceitar um parâmetro de filtro por número de fatura
-3. Retornar apenas as faturas que correspondem ao filtro
+| Intervalo | Mensagens/Min | Mensagens/Hora | Uso Sugerido |
+|-----------|---------------|----------------|--------------|
+| 1 segundo | 60 | 3.600 | Alto volume, risco maior |
+| 30 segundos | 2 | 120 | Volume moderado |
+| 60 segundos | 1 | 60 | Conservador |
+| 300 segundos (5 min) | 0.2 | 12 | Muito conservador |
 
 ---
 
-## Detalhes Técnicos
+## Validacoes
 
-### Arquivos a Criar
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/cobranca/AgendamentoCard.tsx` | Card de configuração de agendamento |
-| `src/components/cobranca/FiltroNumeroFatura.tsx` | Componente de filtro por número de fatura |
-| `src/hooks/useAgendamentoCobranca.tsx` | Hook para gerenciar configurações de agendamento |
-| `supabase/functions/executar-cron-cobranca/index.ts` | Edge Function chamada pelo CRON |
-
-### Arquivos a Modificar
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `supabase/functions/gerar-mensagem/index.ts` | Remover valor, adicionar CPF mascarado |
-| `supabase/functions/gerar-lote-automatico/index.ts` | Adicionar filtro por número de fatura |
-| `src/components/cobranca/CreateLoteModal.tsx` | Adicionar filtro por número de fatura |
-| `src/components/cobranca/GeracaoAutomaticaCard.tsx` | Adicionar filtro por número de fatura e agendamento |
-| `src/hooks/useLotesCobranca.tsx` | Atualizar useFaturasEmAberto para calcular número da fatura |
-| `src/types/database.ts` | Adicionar tipo ConfiguracaoCobranca |
-
-### Migração SQL
-
-```sql
--- Tabela de configurações de cobrança
-CREATE TABLE IF NOT EXISTS public.configuracoes_cobranca (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cron_expression TEXT NOT NULL DEFAULT '0 8 * * 1-5',
-  dias_atraso_minimo INTEGER NOT NULL DEFAULT 1,
-  incluir_atrasados BOOLEAN NOT NULL DEFAULT true,
-  incluir_pendentes BOOLEAN NOT NULL DEFAULT false,
-  filtro_numero_fatura INTEGER[] DEFAULT ARRAY[]::INTEGER[],
-  ativo BOOLEAN NOT NULL DEFAULT false,
-  ultima_execucao TIMESTAMPTZ,
-  proxima_execucao TIMESTAMPTZ,
-  created_by UUID REFERENCES auth.users(id),
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-
--- RLS
-ALTER TABLE public.configuracoes_cobranca ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Admin can manage configuracoes"
-  ON public.configuracoes_cobranca FOR ALL
-  USING (public.is_admin());
-
-CREATE POLICY "Authenticated users can view configuracoes"
-  ON public.configuracoes_cobranca FOR SELECT
-  USING (public.is_authenticated_user());
-```
-
-### CRON Job SQL
-
-Para criar o job CRON que executa diariamente:
-
-```sql
-SELECT cron.schedule(
-  'cobranca-automatica-cron',
-  '0 8 * * 1-5',  -- 8h, segunda a sexta
-  $$
-  SELECT net.http_post(
-    url := 'https://pjwnkaoeiaylbhmmdbec.supabase.co/functions/v1/executar-cron-cobranca',
-    headers := jsonb_build_object(
-      'Content-Type', 'application/json',
-      'Authorization', 'Bearer ' || current_setting('app.supabase_anon_key')
-    ),
-    body := '{}'::jsonb
-  );
-  $$
-);
-```
+- **Minimo**: 1 segundo (evitar sobrecarga)
+- **Maximo**: 3600 segundos (1 hora) - valores maiores nao fazem sentido pratico
+- **Padrao**: 1 segundo (comportamento atual)
 
 ---
 
-## Sequência de Implementação
+## Sequencia de Implementacao
 
-### Fase 1: Filtro por Número de Fatura
-1. Atualizar `useFaturasEmAberto` para calcular número da fatura
-2. Criar componente `FiltroNumeroFatura`
-3. Atualizar `CreateLoteModal` com novo filtro
-4. Atualizar `GeracaoAutomaticaCard` com novo filtro
-5. Atualizar Edge Function `gerar-lote-automatico`
-
-### Fase 2: Mensagens sem Valor + CPF
-6. Atualizar Edge Function `gerar-mensagem` com novo prompt
-7. Adicionar função de mascaramento de CPF
-8. Buscar CPF do cliente junto com outros dados
-
-### Fase 3: Agendamento CRON
-9. Criar migração para tabela `configuracoes_cobranca`
-10. Criar Edge Function `executar-cron-cobranca`
-11. Criar componente `AgendamentoCard`
-12. Criar hook `useAgendamentoCobranca`
-13. Integrar na página principal
-14. Configurar CRON job via SQL
-
----
-
-## Interface Final da Geração Automática
-
-```text
-┌─────────────────────────────────────────────────────────────────────────┐
-│  ⚡ GERAÇÃO AUTOMÁTICA DE LOTES                                         │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────────────────────────────────────────────────────────────┐│
-│  │ AGENDAMENTO                                           [Ativo ✓]   ││
-│  │ Executa: Seg a Sex às 08:00                                       ││
-│  │ Última execução: 25/01/2026 08:00 (45 faturas)                    ││
-│  │                                               [Configurar]        ││
-│  └─────────────────────────────────────────────────────────────────────┘│
-│                                                                         │
-│  FILTROS PARA GERAÇÃO                                                   │
-│  ┌──────────────────────────────┐ ┌──────────────────────────────┐     │
-│  │ Dias Atraso: [1 dia    ▼]   │ │ [✓] Atrasados [ ] Pendentes  │     │
-│  └──────────────────────────────┘ └──────────────────────────────┘     │
-│                                                                         │
-│  NÚMERO DA FATURA                                                       │
-│  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │ [✓] 1ª Fatura   [✓] 2ª Fatura   [ ] 3ª Fatura   [ ] 4ª+ Faturas │  │
-│  └──────────────────────────────────────────────────────────────────┘  │
-│                                                                         │
-│                                            [⚡ Gerar Lote Agora]        │
-│                                                                         │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+1. Criar migracao SQL para adicionar coluna `intervalo_envio_segundos`
+2. Atualizar tipo `ConfiguracaoCobranca` no hook
+3. Modificar `AgendamentoCard` com campo de input numerico
+4. Atualizar mutacao para salvar o novo campo
+5. Modificar Edge Function `processar-lote` para usar o valor configurado
+6. Deploy das funcoes
 
 ---
 
 ## Resultado Esperado
 
-Após a implementação:
-
-1. **Agendamento CRON**: O sistema gerará lotes automaticamente nos horários configurados, aguardando apenas aprovação do admin
-
-2. **Mensagens sem valor**: As mensagens não mencionarão valores, apenas quantidade de parcelas e meses em aberto
-
-3. **Confirmação de CPF**: Cada mensagem incluirá os últimos 5 dígitos do CPF para confirmação de identidade
-
-4. **Filtro por número de fatura**: O operador poderá escolher cobrar apenas a 1ª fatura, ou 2ª, ou 3ª+, permitindo estratégias diferenciadas de cobrança
-
-### Benefícios
-
-- **Automação total**: Lotes gerados automaticamente, admin só aprova
-- **Segurança**: CPF mascarado para confirmação de identidade
-- **Privacidade**: Sem valores expostos nas mensagens
-- **Estratégia**: Filtros permitem abordagens diferentes por estágio de inadimplência
+O usuario podera:
+1. Acessar a aba de Agendamento Automatico
+2. Configurar o intervalo desejado em segundos (ex: 30, 60, 300)
+3. Salvar a configuracao
+4. Quando um lote for processado, cada mensagem respeitara o intervalo configurado
