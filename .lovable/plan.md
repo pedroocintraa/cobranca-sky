@@ -1,148 +1,175 @@
 
-# Plano: Tempo de Disparo Configuravel pelo Usuario
 
-## Visao Geral
-
-O usuario podera definir livremente o tempo entre o envio de uma mensagem e outra, em segundos. Isso permite configuracoes como 30 segundos, 60 segundos, 300 segundos (5 minutos), etc.
-
----
+# Plano: Configurar CRON Job para Cobranca Automatica
 
 ## Situacao Atual
 
-O tempo entre mensagens esta fixo em 1 segundo no codigo:
+- As extensoes `pg_cron` e `pg_net` ja estao habilitadas
+- Existe um CRON job ativo para `atualizar-status-cobrancas-diario` (executa as 00:05 UTC)
+- A tabela `configuracoes_cobranca` armazena `cron_expression`, `hora`, `dias_semana` e `ativo`
+- A Edge Function `executar-cron-cobranca` esta pronta para ser chamada
+- Nao existe CRON configurado para disparar `executar-cron-cobranca`
 
-```typescript
-// supabase/functions/processar-lote/index.ts - Linha 118
-await delay(1000); // 1 segundo fixo
+---
+
+## Desafio
+
+O usuario pode alterar o horario e dias da semana a qualquer momento pela interface. Isso significa que precisamos de uma abordagem que:
+
+1. Crie o CRON job inicialmente
+2. Atualize o CRON quando o usuario mudar as configuracoes
+
+---
+
+## Abordagens Possiveis
+
+### Opcao A: CRON Fixo a Cada Minuto (Recomendada)
+
+Executar a funcao a cada minuto e deixar a propria funcao verificar se deve executar com base nas configuracoes.
+
+```text
+Vantagens:
+- Implementacao simples
+- Nao precisa atualizar CRON quando usuario muda configuracao
+- A logica de verificacao ja existe na Edge Function
+
+Desvantagens:
+- Chamadas desnecessarias (1440/dia)
+- Custo minimo de funcao executando brevemente
+```
+
+### Opcao B: CRON Dinamico com Database Function
+
+Criar uma funcao PostgreSQL que atualiza o CRON job sempre que o usuario salva configuracoes.
+
+```text
+Vantagens:
+- CRON executa apenas nos horarios exatos
+- Mais eficiente em termos de chamadas
+
+Desvantagens:
+- Implementacao mais complexa
+- Precisa de trigger na tabela configuracoes_cobranca
 ```
 
 ---
 
-## Solucao Proposta
+## Solucao Recomendada: Opcao A (CRON a Cada Minuto)
 
-### Interface de Configuracao
+A Edge Function `executar-cron-cobranca` ja verifica se a configuracao esta `ativo = true` antes de processar. Podemos adicionar uma verificacao adicional para checar dia/hora antes de gerar lotes.
+
+### Arquitetura
 
 ```text
-+----------------------------------------------------------+
-|  CONFIGURACOES DE ENVIO                                  |
-|                                                          |
-|  Intervalo entre mensagens (segundos):                   |
-|  +------------------+                                    |
-|  |       30         |  segundos                          |
-|  +------------------+                                    |
-|                                                          |
-|  Exemplos: 30s = 2 msg/min | 60s = 1 msg/min            |
-|            300s (5min) = 12 msg/hora                     |
-+----------------------------------------------------------+
+[pg_cron: a cada minuto]
+        |
+        v
+[executar-cron-cobranca]
+        |
+        +-- Verificar: ativo = true?
+        |       |
+        |       +-- NAO: Retorna sem acao
+        |       |
+        |       +-- SIM: Verificar dia/hora atual
+        |               |
+        |               +-- NAO e momento certo: Retorna sem acao
+        |               |
+        |               +-- SIM e momento certo: Gerar lote
 ```
-
-O usuario digita o valor desejado em segundos (minimo 1 segundo).
 
 ---
 
 ## Arquivos a Modificar
 
-### 1. Migracao SQL
+### 1. Executar SQL para Criar CRON Job
 
-Adicionar coluna `intervalo_envio_segundos` na tabela `configuracoes_cobranca`:
+Usar a ferramenta de insercao SQL para agendar o CRON:
 
 ```sql
-ALTER TABLE public.configuracoes_cobranca 
-ADD COLUMN IF NOT EXISTS intervalo_envio_segundos INTEGER NOT NULL DEFAULT 1;
-
-COMMENT ON COLUMN public.configuracoes_cobranca.intervalo_envio_segundos 
-IS 'Intervalo em segundos entre o envio de cada mensagem';
+SELECT cron.schedule(
+  'executar-cron-cobranca',
+  '* * * * *',
+  $$
+  SELECT extensions.http_post(
+    url := 'https://pjwnkaoeiaylbhmmdbec.supabase.co/functions/v1/executar-cron-cobranca',
+    headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."}'::jsonb,
+    body := '{}'::jsonb
+  ) AS request_id;
+  $$
+);
 ```
 
-### 2. Edge Function: processar-lote/index.ts
+### 2. Edge Function: executar-cron-cobranca/index.ts
 
-Modificar para:
-- Buscar a configuracao `intervalo_envio_segundos` do banco
-- Converter para milissegundos e usar no delay
+Adicionar logica para verificar se o momento atual corresponde ao agendamento:
 
 ```typescript
-// Buscar configuracao de intervalo
-const { data: config } = await supabase
-  .from("configuracoes_cobranca")
-  .select("intervalo_envio_segundos")
-  .limit(1)
-  .maybeSingle();
-
-// Converter segundos para milissegundos (padrao 1 segundo)
-const intervaloMs = (config?.intervalo_envio_segundos || 1) * 1000;
-
-// No loop de envio
-await delay(intervaloMs);
-```
-
-### 3. Hook: useAgendamentoCobranca.tsx
-
-Adicionar `intervalo_envio_segundos` ao tipo e a mutacao:
-
-```typescript
-export interface ConfiguracaoCobranca {
-  // ... campos existentes
-  intervalo_envio_segundos: number;
+// Verificar se deve executar agora
+function deveExecutarAgora(config: ConfiguracaoCobranca): boolean {
+  const agora = new Date();
+  const diaAtual = agora.getDay(); // 0=Dom, 1=Seg, ...
+  const horaAtual = agora.getHours();
+  const minutoAtual = agora.getMinutes();
+  
+  // Verificar dia da semana
+  if (!config.dias_semana.includes(diaAtual)) {
+    return false;
+  }
+  
+  // Verificar hora (formato "HH:MM")
+  const [horaConfig, minutoConfig] = config.hora.split(':').map(Number);
+  if (horaAtual !== horaConfig || minutoAtual !== minutoConfig) {
+    return false;
+  }
+  
+  return true;
 }
 ```
-
-### 4. Componente: AgendamentoCard.tsx
-
-Adicionar Input numerico para configurar o intervalo:
-
-```tsx
-<div className="space-y-2">
-  <Label htmlFor="intervalo">Intervalo entre mensagens (segundos)</Label>
-  <Input
-    id="intervalo"
-    type="number"
-    min={1}
-    max={3600}
-    value={intervaloSegundos}
-    onChange={(e) => setIntervaloSegundos(parseInt(e.target.value) || 1)}
-  />
-  <p className="text-xs text-muted-foreground">
-    Tempo de espera entre cada mensagem enviada
-  </p>
-</div>
-```
-
----
-
-## Exemplos de Configuracao
-
-| Intervalo | Mensagens/Min | Mensagens/Hora | Uso Sugerido |
-|-----------|---------------|----------------|--------------|
-| 1 segundo | 60 | 3.600 | Alto volume, risco maior |
-| 30 segundos | 2 | 120 | Volume moderado |
-| 60 segundos | 1 | 60 | Conservador |
-| 300 segundos (5 min) | 0.2 | 12 | Muito conservador |
-
----
-
-## Validacoes
-
-- **Minimo**: 1 segundo (evitar sobrecarga)
-- **Maximo**: 3600 segundos (1 hora) - valores maiores nao fazem sentido pratico
-- **Padrao**: 1 segundo (comportamento atual)
 
 ---
 
 ## Sequencia de Implementacao
 
-1. Criar migracao SQL para adicionar coluna `intervalo_envio_segundos`
-2. Atualizar tipo `ConfiguracaoCobranca` no hook
-3. Modificar `AgendamentoCard` com campo de input numerico
-4. Atualizar mutacao para salvar o novo campo
-5. Modificar Edge Function `processar-lote` para usar o valor configurado
-6. Deploy das funcoes
+1. Modificar `executar-cron-cobranca` para verificar dia/hora antes de executar
+2. Deploy da Edge Function
+3. Executar SQL para criar o CRON job (a cada minuto)
+4. Testar o fluxo completo
 
 ---
 
 ## Resultado Esperado
 
-O usuario podera:
-1. Acessar a aba de Agendamento Automatico
-2. Configurar o intervalo desejado em segundos (ex: 30, 60, 300)
-3. Salvar a configuracao
-4. Quando um lote for processado, cada mensagem respeitara o intervalo configurado
+Apos implementacao:
+
+1. O CRON executa a cada minuto
+2. A funcao verifica se existe configuracao ativa
+3. Se ativa, verifica se e o dia/hora correto
+4. Se for o momento certo, gera o lote automaticamente
+5. A `ultima_execucao` e atualizada
+
+### Exemplo de Funcionamento
+
+```text
+Usuario configura:
+- Horario: 08:00
+- Dias: Seg, Ter, Qua, Qui, Sex
+- Ativo: Sim
+
+Comportamento:
+- Segunda as 08:00 -> Executa e gera lote
+- Segunda as 08:01 -> Nao executa (horario diferente)
+- Sabado as 08:00 -> Nao executa (dia nao selecionado)
+- Qualquer momento com Ativo=Nao -> Nao executa
+```
+
+---
+
+## Consideracoes de Fuso Horario
+
+O `pg_cron` usa UTC por padrao. O usuario configura no horario local (Brasil). Sera necessario considerar a conversao:
+
+- Horario de Brasilia (UTC-3): 08:00 BRT = 11:00 UTC
+- A verificacao na Edge Function deve usar o fuso horario correto
+
+A Edge Function pode usar `Date` com ajuste de timezone ou armazenar a configuracao ja em UTC.
+
