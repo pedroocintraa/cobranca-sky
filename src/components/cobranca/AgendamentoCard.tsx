@@ -45,6 +45,7 @@ export function AgendamentoCard() {
   const [incluirAtrasados, setIncluirAtrasados] = useState(true);
   const [incluirPendentes, setIncluirPendentes] = useState(false);
   const [filtroNumeroFatura, setFiltroNumeroFatura] = useState<number[]>([]);
+  const [intervaloEnvioSegundos, setIntervaloEnvioSegundos] = useState(1);
 
   // Carregar configuração existente
   useEffect(() => {
@@ -56,6 +57,7 @@ export function AgendamentoCard() {
       setIncluirAtrasados(config.incluir_atrasados);
       setIncluirPendentes(config.incluir_pendentes);
       setFiltroNumeroFatura(config.filtro_numero_fatura || []);
+      setIntervaloEnvioSegundos(config.intervalo_envio_segundos || 1);
     }
   }, [config]);
 
@@ -77,6 +79,7 @@ export function AgendamentoCard() {
       incluir_atrasados: incluirAtrasados,
       incluir_pendentes: incluirPendentes,
       filtro_numero_fatura: filtroNumeroFatura,
+      intervalo_envio_segundos: intervaloEnvioSegundos,
     });
   };
 
@@ -208,6 +211,26 @@ export function AgendamentoCard() {
           value={filtroNumeroFatura}
           onChange={setFiltroNumeroFatura}
         />
+
+        {/* Intervalo de envio */}
+        <div className="space-y-2">
+          <Label htmlFor="intervalo-envio">Intervalo entre mensagens (segundos)</Label>
+          <div className="flex items-center gap-2">
+            <Input
+              id="intervalo-envio"
+              type="number"
+              min={1}
+              max={3600}
+              value={intervaloEnvioSegundos}
+              onChange={(e) => setIntervaloEnvioSegundos(Math.max(1, Math.min(3600, parseInt(e.target.value) || 1)))}
+              className="w-32"
+            />
+            <span className="text-sm text-muted-foreground">segundos</span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Tempo de espera entre cada mensagem. Ex: 30s = 2 msg/min | 60s = 1 msg/min | 300s = 12 msg/hora
+          </p>
+        </div>
 
         {/* Resumo */}
         {ativo && diasSemana.length > 0 && (

@@ -11,6 +11,7 @@ export interface ConfiguracaoCobranca {
   incluir_atrasados: boolean;
   incluir_pendentes: boolean;
   filtro_numero_fatura: number[];
+  intervalo_envio_segundos: number;
   ativo: boolean;
   ultima_execucao: string | null;
   proxima_execucao: string | null;
