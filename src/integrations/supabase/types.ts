@@ -501,6 +501,8 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_lote_failure: { Args: { lote_id: string }; Returns: undefined }
+      increment_lote_success: { Args: { lote_id: string }; Returns: undefined }
       is_admin: { Args: never; Returns: boolean }
       is_authenticated_user: { Args: never; Returns: boolean }
       is_operator: { Args: never; Returns: boolean }
