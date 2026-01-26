@@ -111,3 +111,76 @@ export interface DashboardMetrics {
   vencendoHoje: number;
   vencendo7Dias: number;
 }
+
+// ============= Sistema de Cobrança Automática =============
+
+export type LoteStatus = 
+  | 'rascunho' 
+  | 'aguardando_aprovacao' 
+  | 'aprovado' 
+  | 'em_andamento' 
+  | 'concluido' 
+  | 'cancelado';
+
+export type StatusEnvio = 'pendente' | 'enviando' | 'enviado' | 'falha';
+
+export type TipoMensagem = 'cobranca' | 'lembrete' | 'agradecimento';
+
+export interface LoteCobranca {
+  id: string;
+  nome: string;
+  status: LoteStatus;
+  total_faturas: number;
+  total_enviados: number;
+  total_sucesso: number;
+  total_falha: number;
+  created_by: string | null;
+  approved_by: string | null;
+  created_at: string;
+  approved_at: string | null;
+  updated_at: string;
+}
+
+export interface ItemLote {
+  id: string;
+  lote_id: string;
+  fatura_id: string;
+  cliente_id: string;
+  telefone: string;
+  mensagem_gerada: string | null;
+  status_envio: StatusEnvio;
+  tentativas: number;
+  erro_mensagem: string | null;
+  enviado_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  cliente?: Cliente;
+  fatura?: Fatura;
+}
+
+export interface HistoricoMensagem {
+  id: string;
+  cliente_id: string;
+  fatura_id: string | null;
+  lote_id: string | null;
+  tipo: TipoMensagem;
+  mensagem: string;
+  canal: string;
+  status: string | null;
+  api_response: Record<string, unknown> | null;
+  created_at: string;
+  // Joined data
+  cliente?: Cliente;
+  fatura?: Fatura;
+}
+
+// Agregação de faturas por cliente para cobrança
+export interface ClienteComFaturas {
+  cliente: Cliente;
+  faturas: Fatura[];
+  totalFaturas: number;
+  valorTotal: number;
+  diasAtraso: number;
+  mesesAtrasados: string[];
+}
