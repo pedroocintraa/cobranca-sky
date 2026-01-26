@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.processar-lote]
 verify_jwt = false
+
+[functions.gerar-lote-automatico]
+verify_jwt = false
+
+[functions.executar-cron-cobranca]
+verify_jwt = false
