@@ -1,284 +1,391 @@
 
-# Plano: Dashboard de Relatórios e Geração Automática de Lotes
+# Plano: Agendamento CRON, Filtro por Número de Fatura e Mensagens sem Valor
 
 ## Visão Geral
 
-Este plano implementa duas funcionalidades principais:
-1. **Dashboard de Relatórios**: Estatísticas detalhadas de cobranças com visualizações gráficas
-2. **Geração Automática de Lotes**: Sistema que cria lotes automaticamente para aprovação do usuário
+Este plano implementa três funcionalidades solicitadas:
+
+1. **Agendamento automático com CRON**: Disparar lotes de cobrança em dias e horários específicos
+2. **Mensagens sem valor + Confirmação de CPF**: Remover o valor das mensagens e incluir confirmação com os 5 últimos dígitos do CPF
+3. **Filtro por número de fatura**: Permitir filtrar por fatura 1, 2, 3, etc. (ordem cronológica de vencimento por cliente)
 
 ---
 
-## 1. Dashboard de Relatórios de Cobrança
+## 1. Agendamento Automático com CRON
 
-### Layout da Nova Seção
+### Conceito
 
-A página de Cobrança Automática ganhará uma nova aba "Relatórios" com as seguintes visualizações:
+O sistema permitirá agendar a geração de lotes de cobrança para rodar automaticamente em dias e horários específicos, usando pg_cron do Supabase.
+
+### Nova Tabela: `configuracoes_cobranca`
+
+Armazenará as configurações de agendamento:
+
+| Coluna | Tipo | Descrição |
+|--------|------|-----------|
+| id | UUID | Identificador único |
+| cron_expression | TEXT | Expressão CRON (ex: "0 8 * * 1-5" = 8h, seg-sex) |
+| dias_atraso_minimo | INTEGER | Dias mínimos de atraso |
+| incluir_atrasados | BOOLEAN | Incluir faturas atrasadas |
+| incluir_pendentes | BOOLEAN | Incluir faturas pendentes |
+| filtro_numero_fatura | INTEGER[] | Array de números de fatura (1, 2, 3...) |
+| ativo | BOOLEAN | Se o agendamento está ativo |
+| ultima_execucao | TIMESTAMPTZ | Data/hora da última execução |
+| created_by | UUID | Usuário que criou |
+
+### Fluxo do CRON
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  Cobrança Automática                                                    │
-│  [Lotes] [Relatórios]                                                   │
+│                          AGENDAMENTO CRON                               │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│  MÉTRICAS DE ENVIO                                                      │
-│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   │
-│  │ Total Envios │ │ Taxa Sucesso │ │ Taxa Falha   │ │ Msg/Mês      │   │
-│  │    245       │ │    92.3%     │ │    7.7%      │ │    82        │   │
-│  └──────────────┘ └──────────────┘ └──────────────┘ └──────────────┘   │
-│                                                                         │
-│  ┌────────────────────────────────────┐ ┌──────────────────────────┐   │
-│  │ EVOLUÇÃO MENSAL DE COBRANÇAS       │ │ TOP 10 INADIMPLENTES     │   │
-│  │                                    │ │                          │   │
-│  │  [Gráfico de barras com envios,    │ │ 1. João Silva            │   │
-│  │   sucessos e falhas por mês]       │ │    5 faturas - R$ 750    │   │
-│  │                                    │ │ 2. Maria Santos          │   │
-│  │                                    │ │    4 faturas - R$ 600    │   │
-│  │                                    │ │ 3. Pedro Costa           │   │
-│  │                                    │ │    3 faturas - R$ 450    │   │
-│  └────────────────────────────────────┘ └──────────────────────────┘   │
-│                                                                         │
+│  ┌───────────────────┐                                                  │
+│  │ pg_cron trigger   │                                                  │
+│  │ (ex: 8h seg-sex)  │                                                  │
+│  └─────────┬─────────┘                                                  │
+│            │                                                            │
+│            ▼                                                            │
 │  ┌───────────────────────────────────────────────────────────────────┐ │
-│  │ HISTÓRICO DE MENSAGENS RECENTES                                   │ │
-│  ├───────────────────────────────────────────────────────────────────┤ │
-│  │ Cliente       │ Data       │ Tipo      │ Status    │ Ações       │ │
-│  │ João Silva    │ 25/01/2026 │ Cobrança  │ ✅ Enviado │ [Ver]       │ │
-│  │ Maria Santos  │ 25/01/2026 │ Cobrança  │ ❌ Falha   │ [Ver]       │ │
+│  │ Edge Function: executar-cron-cobranca                             │ │
+│  │ - Ler configurações ativas                                        │ │
+│  │ - Para cada config, chamar gerar-lote-automatico                  │ │
+│  │ - Atualizar ultima_execucao                                       │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│            │                                                            │
+│            ▼                                                            │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │ Lote criado com status "aguardando_aprovacao"                     │ │
+│  │ Admin recebe notificação para revisar e aprovar                   │ │
 │  └───────────────────────────────────────────────────────────────────┘ │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Métricas a Exibir
-
-| Métrica | Descrição | Fonte |
-|---------|-----------|-------|
-| Total de Envios | Soma de todas as mensagens enviadas | `itens_lote` (status = enviado) |
-| Taxa de Sucesso | % de envios bem-sucedidos | `lotes_cobranca` (total_sucesso / total_enviados) |
-| Taxa de Falha | % de envios com falha | `lotes_cobranca` (total_falha / total_enviados) |
-| Mensagens/Mês | Média de mensagens por mês | Agregação por mês |
-| Top Inadimplentes | Clientes com mais faturas em aberto | `faturas` + `clientes` agrupado |
-| Evolução Mensal | Gráfico de envios por mês | `lotes_cobranca` agrupado por mês |
-
-### Novos Arquivos
-
-| Arquivo | Descrição |
-|---------|-----------|
-| `src/components/cobranca/RelatoriosTab.tsx` | Componente principal da aba de relatórios |
-| `src/components/cobranca/EnviosChart.tsx` | Gráfico de evolução mensal de envios |
-| `src/components/cobranca/TopInadimplentes.tsx` | Lista dos clientes mais inadimplentes |
-| `src/components/cobranca/HistoricoMensagens.tsx` | Tabela com histórico de mensagens |
-| `src/hooks/useRelatoriosCobranca.tsx` | Hooks para buscar dados dos relatórios |
-
----
-
-## 2. Geração Automática de Lotes
-
-### Funcionamento
-
-O sistema irá gerar lotes automaticamente baseado em regras pré-definidas:
+### Interface de Configuração
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                     GERAÇÃO AUTOMÁTICA DE LOTES                         │
+│  AGENDAMENTO AUTOMÁTICO                                          [✓]   │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                         │
-│   CONFIGURAÇÕES                        LOTE GERADO AUTOMATICAMENTE      │
-│   ┌─────────────────────────┐          ┌─────────────────────────┐     │
-│   │ Frequência: [Diária ▼]  │    =>    │ Nome: Cobrança 26/01    │     │
-│   │ Horário: [08:00]        │          │ Status: Aguardando      │     │
-│   │ Dias Atraso Min: [7]    │          │ Faturas: 45             │     │
-│   │ Incluir:                │          │ [Revisar] [Aprovar]     │     │
-│   │   [✓] Atrasados         │          └─────────────────────────┘     │
-│   │   [ ] Pendentes         │                                          │
-│   └─────────────────────────┘                                          │
+│  Frequência:          [Diariamente ▼]                                   │
+│  Horário:             [08:00]                                           │
+│  Dias da semana:      [✓] Seg [✓] Ter [✓] Qua [✓] Qui [✓] Sex [ ] Sab  │
 │                                                                         │
-│   [Salvar Configuração]  [Gerar Lote Agora]                            │
+│  Filtros:                                                               │
+│  Dias Atraso Min:     [7]                                               │
+│  Número da Fatura:    [✓] 1ª [✓] 2ª [✓] 3ª [ ] 4ª+ (selecionar)        │
+│  Incluir:             [✓] Atrasados  [ ] Pendentes                      │
+│                                                                         │
+│  Última execução: 25/01/2026 às 08:00 - 45 faturas                     │
+│                                                                         │
+│                                    [Salvar] [Executar Agora]            │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Mensagens sem Valor + Confirmação de CPF
+
+### Alteração no Prompt da IA
+
+O prompt atual inclui o valor total. Será alterado para:
+- Remover menção ao valor
+- Adicionar confirmação de CPF (últimos 5 dígitos)
+
+### Antes (atual)
+
+```text
+CONTEXTO:
+- Nome: João
+- Faturas em aberto: 3
+- Valor total: R$ 450,00    <-- REMOVER
+- Meses atrasados: Nov, Dez, Jan
+```
+
+### Depois (novo)
+
+```text
+CONTEXTO:
+- Nome: João
+- Faturas em aberto: 3
+- Meses atrasados: Nov, Dez, Jan
+- CPF (últimos 5 dígitos): *****78472   <-- ADICIONAR
+```
+
+### Novo Prompt para a IA
+
+```text
+Você é um assistente de cobrança educado e profissional.
+Gere UMA mensagem de WhatsApp para cobrar o cliente.
+
+CONTEXTO:
+- Nome: {primeiroNome}
+- Faturas em aberto: {quantidadeFaturas}
+- Meses atrasados: {mesesAtrasados}
+- Dias de atraso: {diasAtraso}
+- Tipo de cobrança: {tipoCobranca}
+- CPF para confirmação: *****{ultimosCincoCPF}
+
+REGRAS IMPORTANTES:
+- Seja cordial mas objetivo
+- Use o primeiro nome do cliente
+- Mencione a quantidade de parcelas em aberto
+- NÃO mencione valores em reais
+- Peça para o cliente confirmar os últimos 5 dígitos do CPF
+- Inclua opção de contato para negociação
+- Máximo 280 caracteres
+- Não use emojis excessivos (máximo 2)
+- NÃO inclua links ou URLs
+- Termine com uma pergunta ou chamada para ação
+```
+
+### Exemplo de Mensagem Gerada
+
+**Antes:**
+> "Olá João! Identificamos 3 parcelas em aberto (Nov, Dez, Jan) totalizando R$ 450,00. Podemos ajudar a regularizar? Responda ou ligue (XX) XXXX-XXXX"
+
+**Depois:**
+> "Olá João! Identificamos 3 parcelas em aberto (Nov, Dez, Jan). Para sua segurança, confirme seu CPF final *****78472. Podemos ajudar a regularizar? Responda esta mensagem."
+
+### Função para Mascarar CPF
+
+```typescript
+function mascararCPF(cpf: string): string {
+  if (!cpf) return "*****00000";
+  // Remove caracteres não numéricos
+  const digits = cpf.replace(/\D/g, '');
+  // Pega os últimos 5 dígitos
+  const ultimos5 = digits.slice(-5).padStart(5, '0');
+  return `*****${ultimos5}`;
+}
+
+// Exemplo:
+// mascararCPF("238.725.784-72") => "*****78472"
+// mascararCPF("23872578472")    => "*****78472"
+```
+
+---
+
+## 3. Filtro por Número de Fatura
+
+### Conceito
+
+Cada cliente pode ter várias faturas em aberto. O "número da fatura" representa a ordem cronológica:
+- Fatura 1 = primeira fatura em aberto (mais antiga)
+- Fatura 2 = segunda fatura em aberto
+- Fatura 3 = terceira fatura em aberto
+- E assim por diante
+
+### Exemplos dos Dados Reais
+
+Com base nos dados do banco:
+- **Braz Ribeiro Do Carmo**: Fatura 1 (Nov/25), Fatura 2 (Dez/25), Fatura 3 (Jan/26)
+- **Lucineide De Amorim Silva**: Fatura 1 (Nov/25), Fatura 2 (Dez/25), Fatura 3 (Jan/26)
+
+### Casos de Uso
+
+| Filtro | Descrição | Uso |
+|--------|-----------|-----|
+| Fatura 1 apenas | Só primeira fatura de cada cliente | Primeiro contato, cobrança leve |
+| Fatura 2 apenas | Segunda fatura em diante | Segundo aviso |
+| Fatura 3+ | Três ou mais faturas | Cobrança mais firme |
+| Faturas 1 e 2 | Até 2 faturas | Cobranças moderadas |
+
+### Interface de Filtro
+
+Na criação de lote (manual ou automático), adicionar:
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│  FILTROS                                                                │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  Status:              [✓] Atrasado  [ ] Pendente                        │
+│  Dias Atraso Min:     [7 dias ▼]                                        │
+│                                                                         │
+│  Número da Fatura:                                                      │
+│  ┌────────────────────────────────────────────────────────────────────┐│
+│  │ [✓] 1ª Fatura  [✓] 2ª Fatura  [ ] 3ª Fatura  [ ] 4ª+ Faturas     ││
+│  │                                                                    ││
+│  │ Ou especifique: [1-3] (ex: "1" ou "1-3" ou "2,3")                 ││
+│  └────────────────────────────────────────────────────────────────────┘│
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Duas Opções de Geração
+### Lógica de Cálculo do Número da Fatura
 
-1. **Botão "Gerar Lote Automático"**: Gera um lote imediatamente com todas as faturas em aberto
-2. **Agendamento com CRON**: Gera lotes automaticamente em dias/horários configurados
-
-### Edge Function: gerar-lote-automatico
-
-Nova função que:
-- Busca todas as faturas com status "Pendente" ou "Atrasado"
-- Agrupa por cliente
-- Cria um novo lote com nome automático (ex: "Cobrança Automática 26/01/2026")
-- Adiciona todos os itens ao lote
-- Gera as mensagens com IA automaticamente
-- Define status como "aguardando_aprovacao"
-- Retorna o ID do lote criado
-
-### Fluxo de Geração Automática
-
-```text
-1. Trigger (Botão ou CRON)
-        │
-        ▼
-2. Edge Function: gerar-lote-automatico
-   ├── Buscar faturas em aberto (Pendente/Atrasado)
-   ├── Filtrar por dias de atraso mínimo (configurável)
-   ├── Agrupar por cliente
-   ├── Criar lote_cobranca com nome automático
-   ├── Inserir itens_lote para cada fatura
-   ├── Chamar gerar-mensagem para cada item
-   └── Atualizar status para "aguardando_aprovacao"
-        │
-        ▼
-3. Notificação na UI
-   └── "Novo lote gerado automaticamente - 45 faturas aguardando aprovação"
-        │
-        ▼
-4. Admin revisa e aprova
-   └── Sistema dispara as mensagens
+```sql
+-- Para cada cliente, enumerar as faturas por ordem de vencimento
+SELECT 
+  f.*,
+  ROW_NUMBER() OVER (
+    PARTITION BY cl.id 
+    ORDER BY f.data_vencimento ASC
+  ) as numero_fatura
+FROM faturas f
+JOIN cobrancas co ON f.cobranca_id = co.id
+JOIN clientes cl ON co.cliente_id = cl.id
+WHERE f.status_id IN (SELECT id FROM status_pagamento WHERE nome IN ('Pendente', 'Atrasado'))
 ```
 
-### Novos Arquivos
+### Hook Atualizado: useFaturasEmAberto
 
-| Arquivo | Descrição |
-|---------|-----------|
-| `supabase/functions/gerar-lote-automatico/index.ts` | Edge Function para gerar lotes |
-| `src/components/cobranca/GeracaoAutomaticaCard.tsx` | Card com botão e configurações |
-
-### Modificações
-
-| Arquivo | Modificação |
-|---------|-------------|
-| `src/pages/CobrancaAutomatica.tsx` | Adicionar tabs (Lotes/Relatórios) e botão de geração automática |
-| `src/hooks/useLotesCobranca.tsx` | Adicionar hook `useGerarLoteAutomatico` |
-| `supabase/config.toml` | Adicionar nova função |
+O hook será atualizado para:
+1. Calcular o número da fatura de cada cliente
+2. Aceitar um parâmetro de filtro por número de fatura
+3. Retornar apenas as faturas que correspondem ao filtro
 
 ---
 
 ## Detalhes Técnicos
 
-### Hook: useRelatoriosCobranca
+### Arquivos a Criar
 
-```typescript
-// Métricas agregadas de envio
-export function useMetricasEnvio() {
-  // Buscar de lotes_cobranca e itens_lote
-  // Calcular totais e taxas
-}
+| Arquivo | Descrição |
+|---------|-----------|
+| `src/components/cobranca/AgendamentoCard.tsx` | Card de configuração de agendamento |
+| `src/components/cobranca/FiltroNumeroFatura.tsx` | Componente de filtro por número de fatura |
+| `src/hooks/useAgendamentoCobranca.tsx` | Hook para gerenciar configurações de agendamento |
+| `supabase/functions/executar-cron-cobranca/index.ts` | Edge Function chamada pelo CRON |
 
-// Top clientes inadimplentes
-export function useTopInadimplentes(limit: number = 10) {
-  // Buscar faturas em aberto agrupadas por cliente
-  // Ordenar por valor total desc
-}
+### Arquivos a Modificar
 
-// Evolução mensal de envios
-export function useEvolucaoMensal() {
-  // Buscar lotes_cobranca agrupados por mês
-  // Somar total_enviados, total_sucesso, total_falha
-}
+| Arquivo | Modificação |
+|---------|-------------|
+| `supabase/functions/gerar-mensagem/index.ts` | Remover valor, adicionar CPF mascarado |
+| `supabase/functions/gerar-lote-automatico/index.ts` | Adicionar filtro por número de fatura |
+| `src/components/cobranca/CreateLoteModal.tsx` | Adicionar filtro por número de fatura |
+| `src/components/cobranca/GeracaoAutomaticaCard.tsx` | Adicionar filtro por número de fatura e agendamento |
+| `src/hooks/useLotesCobranca.tsx` | Atualizar useFaturasEmAberto para calcular número da fatura |
+| `src/types/database.ts` | Adicionar tipo ConfiguracaoCobranca |
 
-// Histórico de mensagens recentes
-export function useHistoricoMensagens(limit: number = 20) {
-  // Buscar de historico_mensagens com joins
-}
+### Migração SQL
+
+```sql
+-- Tabela de configurações de cobrança
+CREATE TABLE IF NOT EXISTS public.configuracoes_cobranca (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  cron_expression TEXT NOT NULL DEFAULT '0 8 * * 1-5',
+  dias_atraso_minimo INTEGER NOT NULL DEFAULT 1,
+  incluir_atrasados BOOLEAN NOT NULL DEFAULT true,
+  incluir_pendentes BOOLEAN NOT NULL DEFAULT false,
+  filtro_numero_fatura INTEGER[] DEFAULT ARRAY[]::INTEGER[],
+  ativo BOOLEAN NOT NULL DEFAULT false,
+  ultima_execucao TIMESTAMPTZ,
+  proxima_execucao TIMESTAMPTZ,
+  created_by UUID REFERENCES auth.users(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- RLS
+ALTER TABLE public.configuracoes_cobranca ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admin can manage configuracoes"
+  ON public.configuracoes_cobranca FOR ALL
+  USING (public.is_admin());
+
+CREATE POLICY "Authenticated users can view configuracoes"
+  ON public.configuracoes_cobranca FOR SELECT
+  USING (public.is_authenticated_user());
 ```
 
-### Edge Function: gerar-lote-automatico
+### CRON Job SQL
 
-```typescript
-// Parâmetros opcionais
-interface GerarLoteParams {
-  diasAtrasoMinimo?: number;  // Default: 1
-  incluirPendentes?: boolean; // Default: false
-  incluirAtrasados?: boolean; // Default: true
-  gerarMensagens?: boolean;   // Default: true
-}
+Para criar o job CRON que executa diariamente:
 
-// Resposta
-interface GerarLoteResponse {
-  success: boolean;
-  loteId?: string;
-  totalFaturas: number;
-  totalClientes: number;
-  mensagem: string;
-}
-```
-
-### Estrutura de Tabs na Página
-
-```typescript
-// CobrancaAutomatica.tsx com Tabs
-<Tabs defaultValue="lotes">
-  <TabsList>
-    <TabsTrigger value="lotes">Lotes</TabsTrigger>
-    <TabsTrigger value="relatorios">Relatórios</TabsTrigger>
-  </TabsList>
-  
-  <TabsContent value="lotes">
-    {/* Conteúdo atual + botão Gerar Automático */}
-  </TabsContent>
-  
-  <TabsContent value="relatorios">
-    <RelatoriosTab />
-  </TabsContent>
-</Tabs>
+```sql
+SELECT cron.schedule(
+  'cobranca-automatica-cron',
+  '0 8 * * 1-5',  -- 8h, segunda a sexta
+  $$
+  SELECT net.http_post(
+    url := 'https://pjwnkaoeiaylbhmmdbec.supabase.co/functions/v1/executar-cron-cobranca',
+    headers := jsonb_build_object(
+      'Content-Type', 'application/json',
+      'Authorization', 'Bearer ' || current_setting('app.supabase_anon_key')
+    ),
+    body := '{}'::jsonb
+  );
+  $$
+);
 ```
 
 ---
 
 ## Sequência de Implementação
 
-### Fase 1: Dashboard de Relatórios
-1. Criar hook `useRelatoriosCobranca` com queries agregadas
-2. Criar componente `TopInadimplentes` com lista de clientes
-3. Criar componente `EnviosChart` com gráfico de barras (Recharts)
-4. Criar componente `HistoricoMensagens` com tabela paginada
-5. Criar componente `RelatoriosTab` que agrupa tudo
-6. Modificar `CobrancaAutomatica.tsx` para usar Tabs
+### Fase 1: Filtro por Número de Fatura
+1. Atualizar `useFaturasEmAberto` para calcular número da fatura
+2. Criar componente `FiltroNumeroFatura`
+3. Atualizar `CreateLoteModal` com novo filtro
+4. Atualizar `GeracaoAutomaticaCard` com novo filtro
+5. Atualizar Edge Function `gerar-lote-automatico`
 
-### Fase 2: Geração Automática
-7. Criar Edge Function `gerar-lote-automatico`
-8. Adicionar ao `supabase/config.toml`
-9. Criar componente `GeracaoAutomaticaCard`
-10. Adicionar hook `useGerarLoteAutomatico`
-11. Integrar botão na página principal
+### Fase 2: Mensagens sem Valor + CPF
+6. Atualizar Edge Function `gerar-mensagem` com novo prompt
+7. Adicionar função de mascaramento de CPF
+8. Buscar CPF do cliente junto com outros dados
+
+### Fase 3: Agendamento CRON
+9. Criar migração para tabela `configuracoes_cobranca`
+10. Criar Edge Function `executar-cron-cobranca`
+11. Criar componente `AgendamentoCard`
+12. Criar hook `useAgendamentoCobranca`
+13. Integrar na página principal
+14. Configurar CRON job via SQL
 
 ---
 
-## Exemplo de Visualização do Gráfico
-
-O gráfico de evolução mensal mostrará:
+## Interface Final da Geração Automática
 
 ```text
-     Evolução Mensal de Cobranças
-     
- 100 │                              ██
-     │                         ██   ██
-  75 │                    ██   ██   ██
-     │               ██   ██   ██   ██
-  50 │          ██   ██   ██   ██   ██
-     │     ██   ██   ██   ██   ██   ██
-  25 │██   ██   ██   ██   ██   ██   ██
-     │██   ██   ██   ██   ██   ██   ██
-   0 └────────────────────────────────
-     Jul  Ago  Set  Out  Nov  Dez  Jan
-     
-     ██ Enviados  ██ Sucesso  ██ Falha
+┌─────────────────────────────────────────────────────────────────────────┐
+│  ⚡ GERAÇÃO AUTOMÁTICA DE LOTES                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ┌─────────────────────────────────────────────────────────────────────┐│
+│  │ AGENDAMENTO                                           [Ativo ✓]   ││
+│  │ Executa: Seg a Sex às 08:00                                       ││
+│  │ Última execução: 25/01/2026 08:00 (45 faturas)                    ││
+│  │                                               [Configurar]        ││
+│  └─────────────────────────────────────────────────────────────────────┘│
+│                                                                         │
+│  FILTROS PARA GERAÇÃO                                                   │
+│  ┌──────────────────────────────┐ ┌──────────────────────────────┐     │
+│  │ Dias Atraso: [1 dia    ▼]   │ │ [✓] Atrasados [ ] Pendentes  │     │
+│  └──────────────────────────────┘ └──────────────────────────────┘     │
+│                                                                         │
+│  NÚMERO DA FATURA                                                       │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │ [✓] 1ª Fatura   [✓] 2ª Fatura   [ ] 3ª Fatura   [ ] 4ª+ Faturas │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                         │
+│                                            [⚡ Gerar Lote Agora]        │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## Resultado Esperado
 
-Após a implementação, o usuário poderá:
+Após a implementação:
 
-1. **Ver estatísticas em tempo real** sobre a efetividade das cobranças
-2. **Identificar clientes problemáticos** através do ranking de inadimplentes
-3. **Acompanhar a evolução** dos envios mês a mês
-4. **Gerar lotes com um clique** sem precisar selecionar faturas manualmente
-5. **Apenas revisar e aprovar** os lotes gerados automaticamente
+1. **Agendamento CRON**: O sistema gerará lotes automaticamente nos horários configurados, aguardando apenas aprovação do admin
 
-O fluxo de trabalho se torna muito mais simples:
-- **Antes**: Criar lote → Selecionar faturas → Gerar mensagens → Aprovar → Disparar
-- **Depois**: Clicar "Gerar Automático" → Revisar → Aprovar → Disparar
+2. **Mensagens sem valor**: As mensagens não mencionarão valores, apenas quantidade de parcelas e meses em aberto
+
+3. **Confirmação de CPF**: Cada mensagem incluirá os últimos 5 dígitos do CPF para confirmação de identidade
+
+4. **Filtro por número de fatura**: O operador poderá escolher cobrar apenas a 1ª fatura, ou 2ª, ou 3ª+, permitindo estratégias diferenciadas de cobrança
+
+### Benefícios
+
+- **Automação total**: Lotes gerados automaticamente, admin só aprova
+- **Segurança**: CPF mascarado para confirmação de identidade
+- **Privacidade**: Sem valores expostos nas mensagens
+- **Estratégia**: Filtros permitem abordagens diferentes por estágio de inadimplência
