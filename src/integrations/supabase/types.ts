@@ -164,6 +164,7 @@ export type Database = {
           id: string
           incluir_atrasados: boolean
           incluir_pendentes: boolean
+          intervalo_envio_segundos: number
           proxima_execucao: string | null
           ultima_execucao: string | null
           updated_at: string
@@ -180,6 +181,7 @@ export type Database = {
           id?: string
           incluir_atrasados?: boolean
           incluir_pendentes?: boolean
+          intervalo_envio_segundos?: number
           proxima_execucao?: string | null
           ultima_execucao?: string | null
           updated_at?: string
@@ -196,6 +198,7 @@ export type Database = {
           id?: string
           incluir_atrasados?: boolean
           incluir_pendentes?: boolean
+          intervalo_envio_segundos?: number
           proxima_execucao?: string | null
           ultima_execucao?: string | null
           updated_at?: string

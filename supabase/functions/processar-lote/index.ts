@@ -80,6 +80,17 @@ serve(async (req) => {
 
     console.log(`Processando ${itens.length} itens do lote ${loteId}`);
 
+    // Buscar configuração de intervalo
+    const { data: config } = await supabase
+      .from("configuracoes_cobranca")
+      .select("intervalo_envio_segundos")
+      .limit(1)
+      .maybeSingle();
+
+    // Converter segundos para milissegundos (padrão 1 segundo)
+    const intervaloMs = (config?.intervalo_envio_segundos || 1) * 1000;
+    console.log(`Intervalo entre mensagens: ${intervaloMs}ms`);
+
     // Processar em background
     const processItems = async () => {
       let processed = 0;
@@ -114,8 +125,8 @@ serve(async (req) => {
             .update({ total_enviados: processed + errors })
             .eq("id", loteId);
 
-          // Rate limiting: ~60 msgs/min = 1 msg/segundo
-          await delay(1000);
+          // Rate limiting configurável
+          await delay(intervaloMs);
         } catch (e) {
           console.error(`Exceção ao processar ${item.id}:`, e);
           errors++;
