@@ -2,3 +2,12 @@ project_id = "pjwnkaoeiaylbhmmdbec"
 
 [functions.atualizar-status-cobrancas]
 verify_jwt = false
+
+[functions.gerar-mensagem]
+verify_jwt = false
+
+[functions.enviar-whatsapp]
+verify_jwt = false
+
+[functions.processar-lote]
+verify_jwt = false

@@ -11,12 +11,14 @@ import {
   Palette,
   ChevronRight,
   Sparkles,
+  MessageSquareMore,
 } from 'lucide-react';
 
 const menuItems = [
   { title: 'Dashboard', url: '/', icon: LayoutDashboard },
   { title: 'Clientes', url: '/clientes', icon: Users },
   { title: 'Cobranças', url: '/cobrancas', icon: Receipt },
+  { title: 'Cobrança Automática', url: '/cobranca-automatica', icon: MessageSquareMore },
   { title: 'Importar', url: '/importar', icon: Upload },
 ];
 

@@ -10,6 +10,7 @@ import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Clientes from "./pages/Clientes";
 import Cobrancas from "./pages/Cobrancas";
+import CobrancaAutomatica from "./pages/CobrancaAutomatica";
 import Importar from "./pages/Importar";
 import Status from "./pages/Status";
 import Usuarios from "./pages/Usuarios";
@@ -30,6 +31,7 @@ const App = () => (
               <Route index element={<Dashboard />} />
               <Route path="clientes" element={<Clientes />} />
               <Route path="cobrancas" element={<Cobrancas />} />
+              <Route path="cobranca-automatica" element={<CobrancaAutomatica />} />
               <Route path="importar" element={<Importar />} />
               <Route path="status" element={<ProtectedRoute requireAdmin><Status /></ProtectedRoute>} />
               <Route path="usuarios" element={<ProtectedRoute requireAdmin><Usuarios /></ProtectedRoute>} />
