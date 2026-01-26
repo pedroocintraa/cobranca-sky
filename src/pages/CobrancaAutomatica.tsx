@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText } from 'lucide-react';
+import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table,
   TableBody,
@@ -14,6 +15,9 @@ import {
 import { useLotesCobranca } from '@/hooks/useLotesCobranca';
 import { CreateLoteModal } from '@/components/cobranca/CreateLoteModal';
 import { LoteDetailsModal } from '@/components/cobranca/LoteDetailsModal';
+import { GeracaoAutomaticaCard } from '@/components/cobranca/GeracaoAutomaticaCard';
+import { AgendamentoCard } from '@/components/cobranca/AgendamentoCard';
+import { RelatoriosTab } from '@/components/cobranca/RelatoriosTab';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { LoteStatus } from '@/types/database';
@@ -49,139 +53,171 @@ export default function CobrancaAutomatica() {
           <h1 className="text-2xl font-bold text-foreground">Cobrança Automática</h1>
           <p className="text-muted-foreground">Gerencie seus disparos de cobrança via WhatsApp</p>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Lote
-        </Button>
       </div>
 
-      {/* Métricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Em Rascunho
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold">{metrics.rascunho}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              Aguardando Aprovação
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-amber-600">{metrics.aguardando}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Send className="h-4 w-4" />
-              Em Andamento
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-blue-600">{metrics.emAndamento}</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              Concluídos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-bold text-green-600">{metrics.concluidos}</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Tabs */}
+      <Tabs defaultValue="lotes" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="lotes" className="gap-2">
+            <FileText className="h-4 w-4" />
+            Lotes
+          </TabsTrigger>
+          <TabsTrigger value="automatico" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Automático
+          </TabsTrigger>
+          <TabsTrigger value="relatorios" className="gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Relatórios
+          </TabsTrigger>
+        </TabsList>
 
-      {/* Tabela de Lotes */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lotes Recentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-            </div>
-          ) : !lotes || lotes.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium">Nenhum lote encontrado</h3>
-              <p className="text-muted-foreground mb-4">Crie um novo lote para iniciar as cobranças automáticas.</p>
-              <Button onClick={() => setCreateModalOpen(true)} variant="outline" className="gap-2">
+        {/* Tab: Lotes */}
+        <TabsContent value="lotes" className="space-y-6">
+          {/* Métricas */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4" />
+                  Em Rascunho
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold">{metrics.rascunho}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Aguardando Aprovação
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-amber-600">{metrics.aguardando}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <Send className="h-4 w-4" />
+                  Em Andamento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-blue-600">{metrics.emAndamento}</p>
+              </CardContent>
+            </Card>
+            
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Concluídos
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-bold text-green-600">{metrics.concluidos}</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Tabela de Lotes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle>Lotes Recentes</CardTitle>
+              <Button onClick={() => setCreateModalOpen(true)} className="gap-2">
                 <Plus className="h-4 w-4" />
-                Criar Primeiro Lote
+                Novo Lote Manual
               </Button>
-            </div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Faturas</TableHead>
-                  <TableHead className="text-center">Enviados</TableHead>
-                  <TableHead className="text-center">Sucesso</TableHead>
-                  <TableHead className="text-center">Falha</TableHead>
-                  <TableHead>Criado em</TableHead>
-                  <TableHead className="text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {lotes.map((lote) => {
-                  const config = statusConfig[lote.status];
-                  const StatusIcon = config.icon;
-                  
-                  return (
-                    <TableRow key={lote.id}>
-                      <TableCell className="font-medium">{lote.nome}</TableCell>
-                      <TableCell>
-                        <Badge variant={config.variant} className="gap-1">
-                          <StatusIcon className="h-3 w-3" />
-                          {config.label}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-center">{lote.total_faturas}</TableCell>
-                      <TableCell className="text-center">
-                        {lote.total_enviados}/{lote.total_faturas}
-                      </TableCell>
-                      <TableCell className="text-center text-green-600">{lote.total_sucesso}</TableCell>
-                      <TableCell className="text-center text-red-600">{lote.total_falha}</TableCell>
-                      <TableCell>
-                        {format(new Date(lote.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setSelectedLoteId(lote.id)}
-                          className="gap-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver
-                        </Button>
-                      </TableCell>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                </div>
+              ) : !lotes || lotes.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">Nenhum lote encontrado</h3>
+                  <p className="text-muted-foreground mb-4">Crie um novo lote para iniciar as cobranças automáticas.</p>
+                  <Button onClick={() => setCreateModalOpen(true)} variant="outline" className="gap-2">
+                    <Plus className="h-4 w-4" />
+                    Criar Primeiro Lote
+                  </Button>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Nome</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-center">Faturas</TableHead>
+                      <TableHead className="text-center">Enviados</TableHead>
+                      <TableHead className="text-center">Sucesso</TableHead>
+                      <TableHead className="text-center">Falha</TableHead>
+                      <TableHead>Criado em</TableHead>
+                      <TableHead className="text-right">Ações</TableHead>
                     </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
+                  </TableHeader>
+                  <TableBody>
+                    {lotes.map((lote) => {
+                      const config = statusConfig[lote.status];
+                      const StatusIcon = config.icon;
+                      
+                      return (
+                        <TableRow key={lote.id}>
+                          <TableCell className="font-medium">{lote.nome}</TableCell>
+                          <TableCell>
+                            <Badge variant={config.variant} className="gap-1">
+                              <StatusIcon className="h-3 w-3" />
+                              {config.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">{lote.total_faturas}</TableCell>
+                          <TableCell className="text-center">
+                            {lote.total_enviados}/{lote.total_faturas}
+                          </TableCell>
+                          <TableCell className="text-center text-green-600">{lote.total_sucesso}</TableCell>
+                          <TableCell className="text-center text-red-600">{lote.total_falha}</TableCell>
+                          <TableCell>
+                            {format(new Date(lote.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedLoteId(lote.id)}
+                              className="gap-1"
+                            >
+                              <Eye className="h-4 w-4" />
+                              Ver
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab: Automático */}
+        <TabsContent value="automatico" className="space-y-6">
+          <GeracaoAutomaticaCard />
+          <AgendamentoCard />
+        </TabsContent>
+
+        {/* Tab: Relatórios */}
+        <TabsContent value="relatorios">
+          <RelatoriosTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Modais */}
       <CreateLoteModal 

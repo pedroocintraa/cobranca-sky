@@ -151,6 +151,57 @@ export type Database = {
           },
         ]
       }
+      configuracoes_cobranca: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          cron_expression: string
+          dias_atraso_minimo: number
+          dias_semana: number[]
+          filtro_numero_fatura: number[] | null
+          hora: string
+          id: string
+          incluir_atrasados: boolean
+          incluir_pendentes: boolean
+          proxima_execucao: string | null
+          ultima_execucao: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          cron_expression?: string
+          dias_atraso_minimo?: number
+          dias_semana?: number[]
+          filtro_numero_fatura?: number[] | null
+          hora?: string
+          id?: string
+          incluir_atrasados?: boolean
+          incluir_pendentes?: boolean
+          proxima_execucao?: string | null
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          cron_expression?: string
+          dias_atraso_minimo?: number
+          dias_semana?: number[]
+          filtro_numero_fatura?: number[] | null
+          hora?: string
+          id?: string
+          incluir_atrasados?: boolean
+          incluir_pendentes?: boolean
+          proxima_execucao?: string | null
+          ultima_execucao?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       faturas: {
         Row: {
           cobranca_id: string

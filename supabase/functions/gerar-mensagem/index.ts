@@ -71,8 +71,7 @@ serve(async (req) => {
     for (const [clienteId, data] of clientesMap) {
       const { cliente, faturas, itens: clienteItens } = data;
       
-      // Calcular contexto
-      const valorTotal = faturas.reduce((sum: number, f: any) => sum + (f?.valor || 0), 0);
+      // Calcular contexto (SEM VALOR)
       const mesesAtrasados = faturas.map((f: any) => f?.mes_referencia).filter(Boolean);
       
       // Calcular dias de atraso
@@ -97,21 +96,28 @@ serve(async (req) => {
       // Primeiro nome do cliente
       const primeiroNome = cliente?.nome?.split(" ")[0] || "Cliente";
 
+      // Mascarar CPF (mostrar apenas últimos 5 dígitos)
+      const cpfOriginal = cliente?.cpf || "";
+      const cpfDigitos = cpfOriginal.replace(/\D/g, '');
+      const cpfMascarado = `*****${cpfDigitos.slice(-5).padStart(5, '0')}`;
+
       const prompt = `Você é um assistente de cobrança educado e profissional.
 Gere UMA mensagem de WhatsApp para cobrar o cliente.
 
 CONTEXTO:
 - Nome: ${primeiroNome}
 - Faturas em aberto: ${faturas.length}
-- Valor total: R$ ${valorTotal.toFixed(2).replace(".", ",")}
 - Meses atrasados: ${mesesAtrasados.join(", ") || "atual"}
 - Dias de atraso: ${diasAtraso}
 - Tipo de cobrança: ${tipoCobranca}
+- CPF para confirmação: ${cpfMascarado}
 
 REGRAS IMPORTANTES:
 - Seja cordial mas objetivo
 - Use o primeiro nome do cliente
-- Mencione o valor total e quantidade de parcelas
+- Mencione a quantidade de parcelas em aberto
+- NÃO mencione valores em reais
+- Peça para o cliente confirmar os últimos 5 dígitos do CPF (${cpfMascarado})
 - Inclua opção de contato para negociação
 - Máximo 280 caracteres
 - Não use emojis excessivos (máximo 2)

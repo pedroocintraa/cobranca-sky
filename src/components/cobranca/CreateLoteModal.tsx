@@ -30,6 +30,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useStatusPagamento } from '@/hooks/useStatusPagamento';
 import { useFaturasEmAberto, useCreateLote, useAddItensLote } from '@/hooks/useLotesCobranca';
+import { FiltroNumeroFatura } from './FiltroNumeroFatura';
 import type { ClienteComFaturas } from '@/types/database';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -44,6 +45,7 @@ export function CreateLoteModal({ open, onOpenChange }: CreateLoteModalProps) {
   const [nome, setNome] = useState(() => `Cobrança ${format(new Date(), 'MMMM yyyy', { locale: ptBR })}`);
   const [selectedStatusIds, setSelectedStatusIds] = useState<string[]>([]);
   const [diasAtrasoMin, setDiasAtrasoMin] = useState<string>('0');
+  const [filtroNumeroFatura, setFiltroNumeroFatura] = useState<number[]>([]);
   const [selectedClientes, setSelectedClientes] = useState<Set<string>>(new Set());
   
   const { data: statusList } = useStatusPagamento();
@@ -51,8 +53,29 @@ export function CreateLoteModal({ open, onOpenChange }: CreateLoteModalProps) {
   const createLote = useCreateLote();
   const addItens = useAddItensLote();
 
-  // Filtrar por dias de atraso
-  const clientesFiltrados = (clientesFaturas || []).filter(cf => cf.diasAtraso >= parseInt(diasAtrasoMin || '0'));
+  // Filtrar por dias de atraso e número de fatura
+  const clientesFiltrados = (clientesFaturas || [])
+    .filter(cf => cf.diasAtraso >= parseInt(diasAtrasoMin || '0'))
+    .map(cf => {
+      // Aplicar filtro por número de fatura
+      if (filtroNumeroFatura.length === 0) return cf;
+      
+      const faturasFiltradas = cf.faturas.filter((_, index) => {
+        const numeroFatura = index + 1;
+        if (filtroNumeroFatura.includes(4) && numeroFatura >= 4) return true;
+        return filtroNumeroFatura.includes(numeroFatura);
+      });
+      
+      if (faturasFiltradas.length === 0) return null;
+      
+      return {
+        ...cf,
+        faturas: faturasFiltradas,
+        totalFaturas: faturasFiltradas.length,
+        valorTotal: faturasFiltradas.reduce((sum, f) => sum + f.valor, 0),
+      };
+    })
+    .filter((cf): cf is ClienteComFaturas => cf !== null);
 
   // Selecionar/deselecionar todos
   useEffect(() => {
@@ -191,6 +214,12 @@ export function CreateLoteModal({ open, onOpenChange }: CreateLoteModalProps) {
               </Select>
             </div>
           </div>
+
+          {/* Filtro por número de fatura */}
+          <FiltroNumeroFatura 
+            value={filtroNumeroFatura}
+            onChange={setFiltroNumeroFatura}
+          />
 
           {/* Lista de Clientes */}
           <div className="border rounded-lg overflow-hidden flex-1">
