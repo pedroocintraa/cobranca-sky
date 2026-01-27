@@ -97,17 +97,25 @@ export function FilasCobranca() {
           </p>
         </div>
         <Button 
-          onClick={() => popularFilas.mutate()}
+          onClick={() => {
+            console.log('Atualizando filas...');
+            popularFilas.mutate();
+          }}
           disabled={popularFilas.isPending}
           variant="outline"
           className="gap-2"
         >
           {popularFilas.isPending ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <>
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Atualizando...
+            </>
           ) : (
-            <RefreshCw className="h-4 w-4" />
+            <>
+              <RefreshCw className="h-4 w-4" />
+              Atualizar Filas
+            </>
           )}
-          Atualizar Filas
         </Button>
       </div>
 

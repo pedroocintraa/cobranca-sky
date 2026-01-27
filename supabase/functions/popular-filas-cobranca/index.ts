@@ -162,7 +162,9 @@ serve(async (req) => {
               status: 'pendente',
             });
 
-          if (!filaError) {
+          if (filaError) {
+            console.error(`Erro ao adicionar fatura ${fatura.id} à fila crítica:`, filaError);
+          } else {
             totalAdicionadas++;
             console.log(`Fatura ${fatura.id} adicionada à fila crítica`);
           }
@@ -198,7 +200,9 @@ serve(async (req) => {
                 status: 'pendente',
               });
 
-            if (!filaError) {
+            if (filaError) {
+              console.error(`Erro ao adicionar fatura ${fatura.id} à fila da regra ${regra.id}:`, filaError);
+            } else {
               totalAdicionadas++;
               console.log(`Fatura ${fatura.id} adicionada à fila da regra ${regra.id}`);
             }
@@ -213,15 +217,23 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         totalAdicionadas,
-        message: `${totalAdicionadas} fatura(s) adicionada(s) às filas de cobrança`,
+        message: totalAdicionadas > 0 
+          ? `${totalAdicionadas} fatura(s) adicionada(s) às filas de cobrança`
+          : "Nenhuma nova fatura adicionada. Todas as faturas já estão nas filas ou foram cobradas recentemente.",
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("Erro ao popular filas:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+    console.error("Detalhes do erro:", error);
+    
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
+      JSON.stringify({ 
+        success: false, 
+        error: errorMessage,
+        message: `Erro ao popular filas: ${errorMessage}` 
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

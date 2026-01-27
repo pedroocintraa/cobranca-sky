@@ -170,23 +170,41 @@ export function usePopularFilasCobranca() {
         body: {},
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro ao invocar função:', error);
+        throw new Error(error.message || 'Erro ao popular filas');
+      }
+
+      // Verificar se a resposta indica erro
+      if (data && !data.success) {
+        throw new Error(data.message || data.error || 'Erro ao popular filas');
+      }
+
       return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['filas-cobranca'] });
       queryClient.invalidateQueries({ queryKey: ['filas-cobranca-agregadas'] });
       
-      toast({ 
-        title: 'Filas atualizadas!', 
-        description: `${data.totalAdicionadas || 0} faturas adicionadas às filas.` 
-      });
+      if (data?.success) {
+        toast({ 
+          title: 'Filas atualizadas!', 
+          description: `${data.totalAdicionadas || 0} fatura(s) adicionada(s) às filas.` 
+        });
+      } else {
+        toast({ 
+          variant: 'destructive',
+          title: 'Aviso', 
+          description: data?.message || 'Nenhuma fatura adicionada às filas.' 
+        });
+      }
     },
     onError: (error: Error) => {
+      console.error('Erro ao popular filas:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao popular filas',
-        description: error.message,
+        description: error.message || 'Erro desconhecido ao atualizar filas',
       });
     },
   });
