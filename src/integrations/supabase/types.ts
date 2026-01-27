@@ -310,6 +310,131 @@ export type Database = {
           },
         ]
       }
+      filas_cobranca: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          enviado_at: string | null
+          erro_mensagem: string | null
+          fatura_id: string
+          id: string
+          regra_id: string | null
+          status: Database["public"]["Enums"]["status_fila_cobranca"]
+          tentativas: number
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          enviado_at?: string | null
+          erro_mensagem?: string | null
+          fatura_id: string
+          id?: string
+          regra_id?: string | null
+          status?: Database["public"]["Enums"]["status_fila_cobranca"]
+          tentativas?: number
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          enviado_at?: string | null
+          erro_mensagem?: string | null
+          fatura_id?: string
+          id?: string
+          regra_id?: string | null
+          status?: Database["public"]["Enums"]["status_fila_cobranca"]
+          tentativas?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "filas_cobranca_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filas_cobranca_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "filas_cobranca_regra_id_fkey"
+            columns: ["regra_id"]
+            isOneToOne: false
+            referencedRelation: "regras_cobranca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      historico_cobranca: {
+        Row: {
+          api_response: Json | null
+          canal: string
+          cliente_id: string
+          created_at: string
+          data_envio: string
+          fatura_id: string
+          fila_critica: boolean
+          id: string
+          mensagem_enviada: string | null
+          regra_id: string | null
+          status: Database["public"]["Enums"]["status_historico_cobranca"]
+        }
+        Insert: {
+          api_response?: Json | null
+          canal?: string
+          cliente_id: string
+          created_at?: string
+          data_envio?: string
+          fatura_id: string
+          fila_critica?: boolean
+          id?: string
+          mensagem_enviada?: string | null
+          regra_id?: string | null
+          status?: Database["public"]["Enums"]["status_historico_cobranca"]
+        }
+        Update: {
+          api_response?: Json | null
+          canal?: string
+          cliente_id?: string
+          created_at?: string
+          data_envio?: string
+          fatura_id?: string
+          fila_critica?: boolean
+          id?: string
+          mensagem_enviada?: string | null
+          regra_id?: string | null
+          status?: Database["public"]["Enums"]["status_historico_cobranca"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "historico_cobranca_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_cobranca_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "historico_cobranca_regra_id_fkey"
+            columns: ["regra_id"]
+            isOneToOne: false
+            referencedRelation: "regras_cobranca"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_mensagens: {
         Row: {
           api_response: Json | null
@@ -655,6 +780,8 @@ export type Database = {
         | "concluido"
         | "cancelado"
       status_envio: "pendente" | "enviando" | "enviado" | "falha"
+      status_fila_cobranca: "pendente" | "processando" | "enviado" | "falha"
+      status_historico_cobranca: "enviado" | "falha"
       tipo_mensagem: "cobranca" | "lembrete" | "agradecimento"
     }
     CompositeTypes: {
@@ -793,6 +920,8 @@ export const Constants = {
         "cancelado",
       ],
       status_envio: ["pendente", "enviando", "enviado", "falha"],
+      status_fila_cobranca: ["pendente", "processando", "enviado", "falha"],
+      status_historico_cobranca: ["enviado", "falha"],
       tipo_mensagem: ["cobranca", "lembrete", "agradecimento"],
     },
   },

@@ -1,122 +1,177 @@
 
-# Plano: Corrigir Erros de Build
+# Plano: Criar Tabelas Faltantes no Banco de Dados
 
-## Problemas Identificados
+## Problema Identificado
 
-### 1. Importacao Duplicada (ClientesAtrasados.tsx)
-- Linha 21 e 31 tem a mesma importacao de `useClientesComFaturasAtrasadas`
-- **Acao**: Remover a linha 31
+O codigo sincronizado do GitHub espera duas tabelas que nao existem no banco de dados:
 
-### 2. Tabelas Inexistentes no Banco de Dados
-O codigo em `useRegrasCobranca.tsx` tenta acessar:
-- `regras_cobranca` - NAO EXISTE
-- `fila_cobranca_critica` - NAO EXISTE
+1. **`filas_cobranca`** - Tabela para gerenciar filas de cobranca por regra
+2. **`historico_cobranca`** - Tabela para registrar historico de envios de cobranca
 
-Tabelas que existem atualmente:
-- clientes, cobranca_historico, cobrancas, configuracoes_cobranca, faturas, historico_mensagens, import_logs, itens_lote, lotes_cobranca, profiles, status_pagamento, user_roles
+### Tabelas Existentes vs Esperadas
 
-**Acao**: Criar as tabelas no banco de dados:
+| Existe no Banco | Esperado no Codigo | Status |
+|-----------------|-------------------|--------|
+| `fila_cobranca_critica` | `filas_cobranca` | DIFERENTE |
+| `historico_mensagens` | `historico_cobranca` | DIFERENTE |
+| `regras_cobranca` | `regras_cobranca` | OK |
+
+---
+
+## Estrutura Esperada das Tabelas
+
+### 1. Tabela `filas_cobranca`
+
+Baseado no tipo `FilaCobranca` em `src/types/database.ts`:
+
+```text
+Campos:
+- id: UUID (PK)
+- regra_id: UUID (FK -> regras_cobranca, nullable para fila critica)
+- fatura_id: UUID (FK -> faturas)
+- cliente_id: UUID (FK -> clientes)
+- status: ENUM ('pendente', 'processando', 'enviado', 'falha')
+- tentativas: INTEGER (default 0)
+- erro_mensagem: TEXT (nullable)
+- enviado_at: TIMESTAMPTZ (nullable)
+- created_at: TIMESTAMPTZ
+- updated_at: TIMESTAMPTZ
+```
+
+### 2. Tabela `historico_cobranca`
+
+Baseado no tipo `HistoricoCobranca` em `src/types/database.ts`:
+
+```text
+Campos:
+- id: UUID (PK)
+- fatura_id: UUID (FK -> faturas)
+- regra_id: UUID (FK -> regras_cobranca, nullable)
+- cliente_id: UUID (FK -> clientes)
+- fila_critica: BOOLEAN (default false)
+- data_envio: TIMESTAMPTZ
+- status: ENUM ('enviado', 'falha')
+- mensagem_enviada: TEXT (nullable)
+- canal: TEXT (default 'whatsapp')
+- api_response: JSONB (nullable)
+- created_at: TIMESTAMPTZ
+```
+
+---
+
+## SQL Migration a Executar
 
 ```sql
--- Criar tabela regras_cobranca
-CREATE TABLE public.regras_cobranca (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tipo TEXT NOT NULL CHECK (tipo IN ('antes_vencimento', 'apos_vencimento')),
-  dias INTEGER NOT NULL DEFAULT 0,
-  ativo BOOLEAN NOT NULL DEFAULT true,
-  ordem INTEGER NOT NULL DEFAULT 0,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_by UUID REFERENCES auth.users(id)
-);
+-- Criar enum para status da fila
+CREATE TYPE status_fila_cobranca AS ENUM ('pendente', 'processando', 'enviado', 'falha');
 
--- Criar tabela fila_cobranca_critica
-CREATE TABLE public.fila_cobranca_critica (
+-- Criar enum para status do historico
+CREATE TYPE status_historico_cobranca AS ENUM ('enviado', 'falha');
+
+-- Criar tabela filas_cobranca
+CREATE TABLE public.filas_cobranca (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  fatura_id UUID NOT NULL REFERENCES public.faturas(id),
-  cliente_id UUID NOT NULL REFERENCES public.clientes(id),
-  dias_atraso INTEGER NOT NULL DEFAULT 0,
-  prioridade INTEGER NOT NULL DEFAULT 0,
-  processado BOOLEAN NOT NULL DEFAULT false,
-  processado_at TIMESTAMPTZ,
+  regra_id UUID REFERENCES public.regras_cobranca(id) ON DELETE SET NULL,
+  fatura_id UUID NOT NULL REFERENCES public.faturas(id) ON DELETE CASCADE,
+  cliente_id UUID NOT NULL REFERENCES public.clientes(id) ON DELETE CASCADE,
+  status status_fila_cobranca NOT NULL DEFAULT 'pendente',
+  tentativas INTEGER NOT NULL DEFAULT 0,
+  erro_mensagem TEXT,
+  enviado_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Criar tabela historico_cobranca
+CREATE TABLE public.historico_cobranca (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  fatura_id UUID NOT NULL REFERENCES public.faturas(id) ON DELETE CASCADE,
+  regra_id UUID REFERENCES public.regras_cobranca(id) ON DELETE SET NULL,
+  cliente_id UUID NOT NULL REFERENCES public.clientes(id) ON DELETE CASCADE,
+  fila_critica BOOLEAN NOT NULL DEFAULT false,
+  data_envio TIMESTAMPTZ NOT NULL DEFAULT now(),
+  status status_historico_cobranca NOT NULL DEFAULT 'enviado',
+  mensagem_enviada TEXT,
+  canal TEXT NOT NULL DEFAULT 'whatsapp',
+  api_response JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Habilitar RLS
-ALTER TABLE public.regras_cobranca ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.fila_cobranca_critica ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.filas_cobranca ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.historico_cobranca ENABLE ROW LEVEL SECURITY;
 
--- Criar politicas RLS
-CREATE POLICY "Admin can manage regras" ON public.regras_cobranca
+-- Politicas RLS para filas_cobranca
+CREATE POLICY "Admin can manage filas" ON public.filas_cobranca
   FOR ALL USING (is_admin());
 
-CREATE POLICY "Authenticated users can view regras" ON public.regras_cobranca
+CREATE POLICY "Authenticated users can view filas" ON public.filas_cobranca
   FOR SELECT USING (is_authenticated_user());
 
-CREATE POLICY "Admin can manage fila" ON public.fila_cobranca_critica
+-- Politicas RLS para historico_cobranca
+CREATE POLICY "Admin can manage historico" ON public.historico_cobranca
   FOR ALL USING (is_admin());
 
-CREATE POLICY "Authenticated users can view fila" ON public.fila_cobranca_critica
+CREATE POLICY "Authenticated users can view historico" ON public.historico_cobranca
   FOR SELECT USING (is_authenticated_user());
 
--- Criar enum para tipo de regra
-DO $$ BEGIN
-  CREATE TYPE tipo_regra_cobranca AS ENUM ('antes_vencimento', 'apos_vencimento');
-EXCEPTION
-  WHEN duplicate_object THEN null;
-END $$;
+CREATE POLICY "Authenticated users can insert historico" ON public.historico_cobranca
+  FOR INSERT WITH CHECK (is_authenticated_user());
+
+-- Trigger para updated_at em filas_cobranca
+CREATE TRIGGER update_filas_cobranca_updated_at
+  BEFORE UPDATE ON public.filas_cobranca
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+
+-- Indices para performance
+CREATE INDEX idx_filas_cobranca_regra_id ON public.filas_cobranca(regra_id);
+CREATE INDEX idx_filas_cobranca_status ON public.filas_cobranca(status);
+CREATE INDEX idx_filas_cobranca_fatura_id ON public.filas_cobranca(fatura_id);
+CREATE INDEX idx_historico_cobranca_fatura_id ON public.historico_cobranca(fatura_id);
+CREATE INDEX idx_historico_cobranca_data_envio ON public.historico_cobranca(data_envio);
 ```
-
-### 3. Icone Inexistente (CobrancaAutomatica.tsx)
-- O icone `Rule` nao existe em lucide-react
-- **Acao**: Substituir `Rule` por `Scale` ou `ListChecks` (icones validos)
-
-### 4. Tipos Incompativeis (GerenciarRegrasCobranca.tsx)
-- O formulario envia campos opcionais mas o hook espera campos obrigatorios
-- **Acao**: Garantir que todos os campos obrigatorios sejam enviados no submit
-
----
-
-## Arquivos a Modificar
-
-### 1. src/components/cobranca/ClientesAtrasados.tsx
-- Remover linha 31 (importacao duplicada)
-
-### 2. src/pages/CobrancaAutomatica.tsx
-- Substituir importacao de `Rule` por `Scale` ou `ListChecks`
-
-### 3. src/components/cobranca/GerenciarRegrasCobranca.tsx
-- Ajustar handleSubmit para enviar objeto completo com tipo obrigatorio
-
-### 4. Migracao SQL
-- Criar tabelas `regras_cobranca` e `fila_cobranca_critica` no banco
 
 ---
 
 ## Sequencia de Implementacao
 
-1. Executar migracao SQL para criar as tabelas ausentes
-2. Corrigir importacao duplicada em ClientesAtrasados.tsx
-3. Corrigir icone inexistente em CobrancaAutomatica.tsx
-4. Corrigir tipos em GerenciarRegrasCobranca.tsx
-5. Verificar se o types.ts sera regenerado automaticamente
+1. **Executar migracao SQL** - Criar as tabelas `filas_cobranca` e `historico_cobranca` com seus enums, RLS e indices
 
----
+2. **Regeneracao automatica** - O arquivo `types.ts` sera atualizado automaticamente apos a migracao
 
-## Por que isso aconteceu?
-
-Quando voce edita codigo diretamente no GitHub:
-- As alteracoes de **codigo** sao sincronizadas com o Lovable
-- Porem, **migracoes de banco de dados** NAO sao executadas automaticamente
-
-O codigo que voce subiu espera tabelas (`regras_cobranca`, `fila_cobranca_critica`) que nunca foram criadas no Supabase. Por isso os erros de tipo aparecem - o TypeScript sabe que essas tabelas nao existem.
+3. **Build passara** - Com as tabelas existindo, os erros de TypeScript serao resolvidos
 
 ---
 
 ## Resultado Esperado
 
-Apos as correcoes:
+Apos a migracao:
+
 - Build passara sem erros
-- As funcionalidades de regras de cobranca funcionarao
-- A fila de cobranca critica estara disponivel
+- O hook `useFilasCobranca` funcionara corretamente
+- O hook `useHistoricoCobranca` funcionara corretamente
+- O componente `FilasCobranca` exibira as filas de cobranca
+- O sistema de disparo de cobrancas funcionara
+
+---
+
+## Detalhes Tecnicos
+
+### Relacionamentos
+
+```text
+filas_cobranca:
+  - regra_id -> regras_cobranca (opcional, NULL = fila critica)
+  - fatura_id -> faturas
+  - cliente_id -> clientes
+
+historico_cobranca:
+  - fatura_id -> faturas
+  - regra_id -> regras_cobranca (opcional)
+  - cliente_id -> clientes
+```
+
+### RLS Policies
+
+- **Admin**: Pode gerenciar (CRUD) todas as filas e historicos
+- **Authenticated Users**: Podem visualizar (SELECT) e inserir historicos
