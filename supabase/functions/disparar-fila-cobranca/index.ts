@@ -21,7 +21,17 @@ serve(async (req) => {
   }
 
   try {
-    const { regraId } = await req.json();
+    // Tratar body vazio ou inválido
+    let regraId = null;
+    try {
+      const body = await req.text();
+      if (body) {
+        const parsed = JSON.parse(body);
+        regraId = parsed.regraId ?? null;
+      }
+    } catch {
+      // Body vazio ou inválido - usar regraId = null (fila crítica)
+    }
     
     console.log(`=== Disparando fila de cobrança: ${regraId || 'crítica'} ===`);
 
