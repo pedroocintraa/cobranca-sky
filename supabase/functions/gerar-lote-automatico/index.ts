@@ -7,12 +7,8 @@ const corsHeaders = {
 };
 
 interface GerarLoteParams {
-  diasAtrasoMinimo?: number;
-  incluirPendentes?: boolean;
-  incluirAtrasados?: boolean;
-  filtroNumeroFatura?: number[];
   gerarMensagens?: boolean;
-  usarRegras?: boolean; // Novo parâmetro para usar regras configuradas
+  // Parâmetros antigos removidos - sempre usar regras agora
 }
 
 interface RegraCobranca {
@@ -31,38 +27,44 @@ serve(async (req) => {
   try {
     const params: GerarLoteParams = await req.json().catch(() => ({}));
     const {
-      diasAtrasoMinimo = 1,
-      incluirPendentes = false,
-      incluirAtrasados = true,
-      filtroNumeroFatura = [],
       gerarMensagens = true,
-      usarRegras = true, // Por padrão usar regras
     } = params;
 
-    console.log("Parâmetros recebidos:", params);
+    console.log("Gerando lote usando regras configuradas...");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Buscar regras ativas se usarRegras = true
-    let regrasAtivas: RegraCobranca[] = [];
-    if (usarRegras) {
-      const { data: regras, error: regrasError } = await supabase
-        .from("regras_cobranca")
-        .select("*")
-        .eq("ativo", true)
-        .order("ordem", { ascending: true });
+    // 1. Buscar regras ativas (sempre usar regras agora)
+    const { data: regras, error: regrasError } = await supabase
+      .from("regras_cobranca")
+      .select("*")
+      .eq("ativo", true)
+      .order("ordem", { ascending: true });
 
-      if (regrasError) {
-        console.error("Erro ao buscar regras:", regrasError);
-      } else {
-        regrasAtivas = regras || [];
-        console.log(`Encontradas ${regrasAtivas.length} regras ativas`);
-      }
+    if (regrasError) {
+      console.error("Erro ao buscar regras:", regrasError);
+      throw regrasError;
     }
 
-    // 2. Buscar status "Pendente" e "Atrasado"
+    const regrasAtivas: RegraCobranca[] = regras || [];
+    
+    if (regrasAtivas.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: "Nenhuma regra de cobrança ativa encontrada. Configure regras na aba 'Regras' antes de gerar lotes.", 
+          totalFaturas: 0, 
+          totalClientes: 0 
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    console.log(`Encontradas ${regrasAtivas.length} regras ativas`);
+
+    // 2. Buscar status "Pendente" e "Atrasado" (sempre incluir ambos)
     const { data: statusList, error: statusError } = await supabase
       .from("status_pagamento")
       .select("id, nome")
@@ -74,12 +76,12 @@ serve(async (req) => {
     const atrasadoId = statusList?.find(s => s.nome === "Atrasado")?.id;
     const pendenteId = statusList?.find(s => s.nome === "Pendente")?.id;
     
-    if (incluirAtrasados && atrasadoId) statusIds.push(atrasadoId);
-    if (incluirPendentes && pendenteId) statusIds.push(pendenteId);
+    if (atrasadoId) statusIds.push(atrasadoId);
+    if (pendenteId) statusIds.push(pendenteId);
 
     if (statusIds.length === 0) {
       return new Response(
-        JSON.stringify({ success: false, message: "Nenhum status selecionado", totalFaturas: 0, totalClientes: 0 }),
+        JSON.stringify({ success: false, message: "Status 'Pendente' ou 'Atrasado' não encontrados no sistema", totalFaturas: 0, totalClientes: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -181,32 +183,12 @@ serve(async (req) => {
           return; // Não incluir no lote normal
         }
 
+        // Verificar se a fatura se encaixa em alguma regra ativa
         let deveIncluir = false;
-
-        if (usarRegras && regrasAtivas.length > 0) {
-          // Verificar se a fatura se encaixa em alguma regra ativa
-          for (const regra of regrasAtivas) {
-            if (verificarRegra(fatura, regra)) {
-              deveIncluir = true;
-              break; // Encontrou uma regra que se aplica
-            }
-          }
-        } else {
-          // Usar lógica antiga (filtros)
-          if (diasAtraso < diasAtrasoMinimo) {
-            return; // Pular esta fatura
-          }
-
-          // Aplicar filtro de número de fatura se especificado
-          if (filtroNumeroFatura.length > 0) {
-            const maxFiltro = Math.max(...filtroNumeroFatura);
-            if (filtroNumeroFatura.includes(4) && numeroFatura >= 4) {
-              deveIncluir = true;
-            } else if (filtroNumeroFatura.includes(numeroFatura)) {
-              deveIncluir = true;
-            }
-          } else {
+        for (const regra of regrasAtivas) {
+          if (verificarRegra(fatura, regra)) {
             deveIncluir = true;
+            break; // Encontrou uma regra que se aplica
           }
         }
 

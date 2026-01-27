@@ -114,3 +114,25 @@ export function useDeleteCliente() {
     },
   });
 }
+
+export function useDeleteAllClientes() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from('clientes').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['clientes'] });
+      toast({ title: 'Todos os clientes foram excluídos!' });
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao excluir clientes',
+        description: error.message,
+      });
+    },
+  });
+}

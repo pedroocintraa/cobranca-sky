@@ -1,20 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Loader2, Save, Power, PowerOff } from 'lucide-react';
+import { Calendar, Clock, Loader2, Save, Power } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { FiltroNumeroFatura } from './FiltroNumeroFatura';
 import { 
   useConfiguracaoCobranca, 
   useSaveConfiguracaoCobranca,
@@ -41,10 +32,6 @@ export function AgendamentoCard() {
   const [ativo, setAtivo] = useState(false);
   const [hora, setHora] = useState('08:00');
   const [diasSemana, setDiasSemana] = useState<number[]>([1, 2, 3, 4, 5]);
-  const [diasAtrasoMinimo, setDiasAtrasoMinimo] = useState(1);
-  const [incluirAtrasados, setIncluirAtrasados] = useState(true);
-  const [incluirPendentes, setIncluirPendentes] = useState(false);
-  const [filtroNumeroFatura, setFiltroNumeroFatura] = useState<number[]>([]);
   const [intervaloEnvioSegundos, setIntervaloEnvioSegundos] = useState(1);
 
   // Carregar configuração existente
@@ -53,10 +40,6 @@ export function AgendamentoCard() {
       setAtivo(config.ativo);
       setHora(config.hora);
       setDiasSemana(config.dias_semana);
-      setDiasAtrasoMinimo(config.dias_atraso_minimo);
-      setIncluirAtrasados(config.incluir_atrasados);
-      setIncluirPendentes(config.incluir_pendentes);
-      setFiltroNumeroFatura(config.filtro_numero_fatura || []);
       setIntervaloEnvioSegundos(config.intervalo_envio_segundos || 1);
     }
   }, [config]);
@@ -75,11 +58,12 @@ export function AgendamentoCard() {
       hora,
       dias_semana: diasSemana,
       cron_expression: gerarCronExpression(hora, diasSemana),
-      dias_atraso_minimo: diasAtrasoMinimo,
-      incluir_atrasados: incluirAtrasados,
-      incluir_pendentes: incluirPendentes,
-      filtro_numero_fatura: filtroNumeroFatura,
       intervalo_envio_segundos: intervaloEnvioSegundos,
+      // Remover campos antigos - sempre usar regras agora
+      dias_atraso_minimo: 0,
+      incluir_atrasados: true,
+      incluir_pendentes: true,
+      filtro_numero_fatura: [],
     });
   };
 
@@ -103,7 +87,7 @@ export function AgendamentoCard() {
               Agendamento Automático
             </CardTitle>
             <CardDescription>
-              Configure a geração automática de lotes de cobrança
+              Configure quando o sistema deve gerar lotes automaticamente usando as regras configuradas
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">
@@ -157,61 +141,6 @@ export function AgendamentoCard() {
           </div>
         </div>
 
-        {/* Filtros */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Dias de Atraso Mínimo</Label>
-            <Select 
-              value={diasAtrasoMinimo.toString()} 
-              onValueChange={(v) => setDiasAtrasoMinimo(parseInt(v))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="0">Todos (incluindo hoje)</SelectItem>
-                <SelectItem value="1">A partir de 1 dia</SelectItem>
-                <SelectItem value="7">A partir de 7 dias</SelectItem>
-                <SelectItem value="15">A partir de 15 dias</SelectItem>
-                <SelectItem value="30">A partir de 30 dias</SelectItem>
-                <SelectItem value="60">A partir de 60 dias</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-4">
-            <Label>Status das Faturas</Label>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="agend-atrasados"
-                  checked={incluirAtrasados}
-                  onCheckedChange={(checked) => setIncluirAtrasados(!!checked)}
-                />
-                <Label htmlFor="agend-atrasados" className="cursor-pointer">
-                  Atrasados
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="agend-pendentes"
-                  checked={incluirPendentes}
-                  onCheckedChange={(checked) => setIncluirPendentes(!!checked)}
-                />
-                <Label htmlFor="agend-pendentes" className="cursor-pointer">
-                  Pendentes
-                </Label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filtro por número de fatura */}
-        <FiltroNumeroFatura 
-          value={filtroNumeroFatura}
-          onChange={setFiltroNumeroFatura}
-        />
-
         {/* Intervalo de envio */}
         <div className="space-y-2">
           <Label htmlFor="intervalo-envio">Intervalo entre mensagens (segundos)</Label>
@@ -235,9 +164,10 @@ export function AgendamentoCard() {
         {/* Resumo */}
         {ativo && diasSemana.length > 0 && (
           <div className="p-3 bg-muted rounded-lg text-sm">
-            <span className="font-medium">Resumo:</span> Lotes serão gerados às{' '}
+            <span className="font-medium">Resumo:</span> Lotes serão gerados automaticamente às{' '}
             <span className="font-medium">{hora}</span> em{' '}
             <span className="font-medium">{formatarDiasSemana(diasSemana)}</span>
+            {' '}usando as regras configuradas na aba "Regras".
           </div>
         )}
 

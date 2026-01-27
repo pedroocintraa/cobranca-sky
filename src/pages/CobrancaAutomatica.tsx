@@ -15,7 +15,6 @@ import {
 import { useLotesCobranca } from '@/hooks/useLotesCobranca';
 import { CreateLoteModal } from '@/components/cobranca/CreateLoteModal';
 import { LoteDetailsModal } from '@/components/cobranca/LoteDetailsModal';
-import { GeracaoAutomaticaCard } from '@/components/cobranca/GeracaoAutomaticaCard';
 import { AgendamentoCard } from '@/components/cobranca/AgendamentoCard';
 import { RelatoriosTab } from '@/components/cobranca/RelatoriosTab';
 import { ClientesAtrasados } from '@/components/cobranca/ClientesAtrasados';
@@ -72,9 +71,9 @@ export default function CobrancaAutomatica() {
             <FileText className="h-4 w-4" />
             Lotes
           </TabsTrigger>
-          <TabsTrigger value="automatico" className="gap-2">
+          <TabsTrigger value="agendamento" className="gap-2">
             <Settings className="h-4 w-4" />
-            Automático
+            Agendamento
           </TabsTrigger>
           <TabsTrigger value="relatorios" className="gap-2">
             <BarChart3 className="h-4 w-4" />
@@ -227,9 +226,8 @@ export default function CobrancaAutomatica() {
           </Card>
         </TabsContent>
 
-        {/* Tab: Automático */}
-        <TabsContent value="automatico" className="space-y-6">
-          <GeracaoAutomaticaCard />
+        {/* Tab: Agendamento */}
+        <TabsContent value="agendamento" className="space-y-6">
           <AgendamentoCard />
         </TabsContent>
 

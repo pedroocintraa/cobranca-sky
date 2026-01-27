@@ -106,12 +106,8 @@ serve(async (req) => {
             "Authorization": `Bearer ${supabaseKey}`,
           },
           body: JSON.stringify({
-            diasAtrasoMinimo: config.dias_atraso_minimo,
-            incluirPendentes: config.incluir_pendentes,
-            incluirAtrasados: config.incluir_atrasados,
-            filtroNumeroFatura: config.filtro_numero_fatura || [],
             gerarMensagens: true,
-            usarRegras: true, // Usar regras configuradas
+            // Sempre usar regras - parâmetros antigos removidos
           }),
         });
 

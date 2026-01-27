@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useClientes, useCreateCliente, useUpdateCliente, useDeleteCliente } from '@/hooks/useClientes';
+import { useClientes, useCreateCliente, useUpdateCliente, useDeleteCliente, useDeleteAllClientes } from '@/hooks/useClientes';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Plus, Search, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Users, Trash } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -53,11 +53,13 @@ export default function Clientes() {
   const createCliente = useCreateCliente();
   const updateCliente = useUpdateCliente();
   const deleteCliente = useDeleteCliente();
+  const deleteAllClientes = useDeleteAllClientes();
 
   const [search, setSearch] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [deletingCliente, setDeletingCliente] = useState<Cliente | null>(null);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
@@ -129,6 +131,11 @@ export default function Clientes() {
     }
   };
 
+  const handleDeleteAll = async () => {
+    await deleteAllClientes.mutateAsync();
+    setDeletingAll(false);
+  };
+
   const formatCPF = (value: string) => {
     const digits = value.replace(/\D/g, '').slice(0, 11);
     return digits
@@ -156,13 +163,24 @@ export default function Clientes() {
           <h1 className="text-xl font-semibold text-foreground tracking-tight">Clientes</h1>
           <p className="text-sm text-muted-foreground mt-1">Gerencie seus clientes</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog}>
-              <Plus className="mr-2 h-4 w-4" />
-              Novo Cliente
+        <div className="flex gap-2">
+          {isAdmin && clientes && clientes.length > 0 && (
+            <Button 
+              variant="destructive" 
+              onClick={() => setDeletingAll(true)}
+              className="gap-2"
+            >
+              <Trash className="h-4 w-4" />
+              Excluir Todos
             </Button>
-          </DialogTrigger>
+          )}
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Cliente
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>
@@ -265,6 +283,7 @@ export default function Clientes() {
             </Form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       <Card>
@@ -364,6 +383,31 @@ export default function Clientes() {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deletingAll} onOpenChange={setDeletingAll}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir TODOS os clientes?</AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong className="text-destructive">ATENÇÃO: Esta ação é IRREVERSÍVEL!</strong>
+              <br /><br />
+              Todos os {clientes?.length || 0} clientes e todas as suas cobranças, faturas e histórico serão excluídos permanentemente.
+              <br /><br />
+              Esta ação não pode ser desfeita. Tem certeza que deseja continuar?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAll}
+              disabled={deleteAllClientes.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteAllClientes.isPending ? 'Excluindo...' : 'Sim, Excluir Todos'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
