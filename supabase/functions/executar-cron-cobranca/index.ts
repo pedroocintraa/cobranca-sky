@@ -97,18 +97,15 @@ serve(async (req) => {
       }
 
       try {
-        console.log("Chamando gerar-lote-automatico...");
-        const gerarLoteUrl = `${supabaseUrl}/functions/v1/gerar-lote-automatico`;
-        const response = await fetch(gerarLoteUrl, {
+        console.log("Chamando popular-filas-cobranca...");
+        const popularFilasUrl = `${supabaseUrl}/functions/v1/popular-filas-cobranca`;
+        const response = await fetch(popularFilasUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "Authorization": `Bearer ${supabaseKey}`,
           },
-          body: JSON.stringify({
-            gerarMensagens: true,
-            // Sempre usar regras - parâmetros antigos removidos
-          }),
+          body: JSON.stringify({}),
         });
 
         const result = await response.json();

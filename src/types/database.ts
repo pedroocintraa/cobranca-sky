@@ -226,3 +226,53 @@ export interface ClienteComFaturasAtrasadas {
   status: 'pendente' | 'atrasado' | 'critico'; // Status baseado no maior atraso
   mesesAtrasados: string[];
 }
+
+// ============= Sistema de Filas de Cobrança =============
+
+export type StatusFilaCobranca = 'pendente' | 'processando' | 'enviado' | 'falha';
+
+export interface FilaCobranca {
+  id: string;
+  regra_id: string | null; // NULL para fila crítica
+  fatura_id: string;
+  cliente_id: string;
+  status: StatusFilaCobranca;
+  tentativas: number;
+  erro_mensagem: string | null;
+  enviado_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  regra?: RegraCobranca;
+  fatura?: Fatura;
+  cliente?: Cliente;
+}
+
+export interface HistoricoCobranca {
+  id: string;
+  fatura_id: string;
+  regra_id: string | null;
+  cliente_id: string;
+  fila_critica: boolean;
+  data_envio: string;
+  status: 'enviado' | 'falha';
+  mensagem_enviada: string | null;
+  canal: string;
+  api_response: Record<string, unknown> | null;
+  created_at: string;
+  // Joined data
+  regra?: RegraCobranca;
+  fatura?: Fatura;
+  cliente?: Cliente;
+}
+
+// Agregação de fila por regra
+export interface FilaAgregada {
+  regra: RegraCobranca | null; // NULL para fila crítica
+  total: number;
+  pendentes: number;
+  enviados: number;
+  falhas: number;
+  valorTotal: number;
+  itens: FilaCobranca[];
+}

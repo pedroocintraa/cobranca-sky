@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings, Users, Scale } from 'lucide-react';
+import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings, Users, Scale, List } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,7 @@ import { AgendamentoCard } from '@/components/cobranca/AgendamentoCard';
 import { RelatoriosTab } from '@/components/cobranca/RelatoriosTab';
 import { ClientesAtrasados } from '@/components/cobranca/ClientesAtrasados';
 import { GerenciarRegrasCobranca } from '@/components/cobranca/GerenciarRegrasCobranca';
+import { FilasCobranca } from '@/components/cobranca/FilasCobranca';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { LoteStatus } from '@/types/database';
@@ -67,6 +68,10 @@ export default function CobrancaAutomatica() {
             <Scale className="h-4 w-4" />
             Regras
           </TabsTrigger>
+          <TabsTrigger value="filas" className="gap-2">
+            <List className="h-4 w-4" />
+            Filas
+          </TabsTrigger>
           <TabsTrigger value="lotes" className="gap-2">
             <FileText className="h-4 w-4" />
             Lotes
@@ -89,6 +94,11 @@ export default function CobrancaAutomatica() {
         {/* Tab: Regras */}
         <TabsContent value="regras" className="space-y-6">
           <GerenciarRegrasCobranca />
+        </TabsContent>
+
+        {/* Tab: Filas */}
+        <TabsContent value="filas" className="space-y-6">
+          <FilasCobranca />
         </TabsContent>
 
         {/* Tab: Lotes */}
