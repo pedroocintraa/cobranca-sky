@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings, Users, Rule } from 'lucide-react';
+import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings, Users, Scale } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -65,7 +65,7 @@ export default function CobrancaAutomatica() {
             Clientes Atrasados
           </TabsTrigger>
           <TabsTrigger value="regras" className="gap-2">
-            <Rule className="h-4 w-4" />
+            <Scale className="h-4 w-4" />
             Regras
           </TabsTrigger>
           <TabsTrigger value="lotes" className="gap-2">

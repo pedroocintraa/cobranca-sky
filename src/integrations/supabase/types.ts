@@ -259,6 +259,57 @@ export type Database = {
           },
         ]
       }
+      fila_cobranca_critica: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          dias_atraso: number
+          fatura_id: string
+          id: string
+          prioridade: number
+          processado: boolean
+          processado_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          dias_atraso?: number
+          fatura_id: string
+          id?: string
+          prioridade?: number
+          processado?: boolean
+          processado_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          dias_atraso?: number
+          fatura_id?: string
+          id?: string
+          prioridade?: number
+          processado?: boolean
+          processado_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fila_cobranca_critica_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fila_cobranca_critica_fatura_id_fkey"
+            columns: ["fatura_id"]
+            isOneToOne: false
+            referencedRelation: "faturas"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       historico_mensagens: {
         Row: {
           api_response: Json | null
@@ -489,6 +540,39 @@ export type Database = {
           nome?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      regras_cobranca: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          created_by: string | null
+          dias: number
+          id: string
+          ordem: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          dias?: number
+          id?: string
+          ordem?: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          created_by?: string | null
+          dias?: number
+          id?: string
+          ordem?: number
+          tipo?: string
+          updated_at?: string
         }
         Relationships: []
       }
