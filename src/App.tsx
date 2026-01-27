@@ -14,6 +14,7 @@ import CobrancaAutomatica from "./pages/CobrancaAutomatica";
 import Importar from "./pages/Importar";
 import Status from "./pages/Status";
 import Usuarios from "./pages/Usuarios";
+import Configuracoes from "./pages/Configuracoes";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="importar" element={<Importar />} />
               <Route path="status" element={<ProtectedRoute requireAdmin><Status /></ProtectedRoute>} />
               <Route path="usuarios" element={<ProtectedRoute requireAdmin><Usuarios /></ProtectedRoute>} />
+              <Route path="configuracoes" element={<ProtectedRoute requireAdmin><Configuracoes /></ProtectedRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

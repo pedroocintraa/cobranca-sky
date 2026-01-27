@@ -276,3 +276,30 @@ export interface FilaAgregada {
   valorTotal: number;
   itens: FilaCobranca[];
 }
+
+// ============= Sistema de Webhooks e Instâncias =============
+
+export interface ConfiguracaoWebhooks {
+  id: string;
+  webhook_disparo: string | null;
+  webhook_criar_instancia: string | null;
+  webhook_conectar_instancia: string | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export type StatusInstancia = 'criada' | 'conectada' | 'desconectada' | 'erro';
+
+export interface InstanciaWhatsApp {
+  id: string;
+  nome: string;
+  token: string;
+  status: StatusInstancia;
+  qrcode: string | null;
+  resposta_criacao: Record<string, unknown> | null;
+  resposta_conexao: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}

@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen, LayoutDashboard, Users, Receipt, Upload, Shield, Palette, Sparkles } from 'lucide-react';
+import { LogOut, Menu, Bell, X, PanelLeftClose, PanelLeftOpen, LayoutDashboard, Users, Receipt, Upload, Shield, Palette, Sparkles, Settings } from 'lucide-react';
 import { useState } from 'react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { NavLink } from '@/components/NavLink';
@@ -28,6 +28,7 @@ const menuItems = [
 const adminMenuItems = [
   { title: 'Status', url: '/status', icon: Palette },
   { title: 'Usuários', url: '/usuarios', icon: Shield },
+  { title: 'Configurações', url: '/configuracoes', icon: Settings },
 ];
 
 export default function MainLayout() {
