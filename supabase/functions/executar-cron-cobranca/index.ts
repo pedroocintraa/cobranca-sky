@@ -111,6 +111,7 @@ serve(async (req) => {
             incluirAtrasados: config.incluir_atrasados,
             filtroNumeroFatura: config.filtro_numero_fatura || [],
             gerarMensagens: true,
+            usarRegras: true, // Usar regras configuradas
           }),
         });
 

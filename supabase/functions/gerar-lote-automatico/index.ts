@@ -12,6 +12,15 @@ interface GerarLoteParams {
   incluirAtrasados?: boolean;
   filtroNumeroFatura?: number[];
   gerarMensagens?: boolean;
+  usarRegras?: boolean; // Novo parâmetro para usar regras configuradas
+}
+
+interface RegraCobranca {
+  id: string;
+  tipo: 'antes_vencimento' | 'apos_vencimento';
+  dias: number;
+  ativo: boolean;
+  ordem: number;
 }
 
 serve(async (req) => {
@@ -27,6 +36,7 @@ serve(async (req) => {
       incluirAtrasados = true,
       filtroNumeroFatura = [],
       gerarMensagens = true,
+      usarRegras = true, // Por padrão usar regras
     } = params;
 
     console.log("Parâmetros recebidos:", params);
@@ -35,7 +45,24 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 1. Buscar status "Pendente" e "Atrasado"
+    // 1. Buscar regras ativas se usarRegras = true
+    let regrasAtivas: RegraCobranca[] = [];
+    if (usarRegras) {
+      const { data: regras, error: regrasError } = await supabase
+        .from("regras_cobranca")
+        .select("*")
+        .eq("ativo", true)
+        .order("ordem", { ascending: true });
+
+      if (regrasError) {
+        console.error("Erro ao buscar regras:", regrasError);
+      } else {
+        regrasAtivas = regras || [];
+        console.log(`Encontradas ${regrasAtivas.length} regras ativas`);
+      }
+    }
+
+    // 2. Buscar status "Pendente" e "Atrasado"
     const { data: statusList, error: statusError } = await supabase
       .from("status_pagamento")
       .select("id, nome")
@@ -57,7 +84,7 @@ serve(async (req) => {
       );
     }
 
-    // 2. Buscar todas as faturas em aberto com dados do cliente
+    // 3. Buscar todas as faturas em aberto com dados do cliente
     const { data: faturas, error: faturasError } = await supabase
       .from("faturas")
       .select(`
@@ -77,8 +104,9 @@ serve(async (req) => {
       );
     }
 
-    // 3. Agrupar faturas por cliente e calcular número da fatura
+    // 4. Agrupar faturas por cliente e calcular número da fatura
     const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
     const clientesMap = new Map<string, {
       cliente: any;
       faturas: any[];
@@ -102,19 +130,35 @@ serve(async (req) => {
 
       // Calcular dias de atraso
       const vencimento = new Date(fatura.data_vencimento);
+      vencimento.setHours(0, 0, 0, 0);
       const dias = Math.floor((hoje.getTime() - vencimento.getTime()) / (1000 * 60 * 60 * 24));
       if (dias > clienteData.diasAtraso) {
         clienteData.diasAtraso = dias;
       }
     }
 
-    // 4. Aplicar filtros de dias de atraso e número de fatura
+    // 5. Processar faturas usando regras ou filtros antigos
     const faturasParaLote: { fatura: any; cliente: any; numeroFatura: number }[] = [];
+    const faturasCriticas: { fatura: any; cliente: any; diasAtraso: number }[] = [];
+
+    // Função para verificar se uma fatura se encaixa em uma regra
+    const verificarRegra = (fatura: any, regra: RegraCobranca): boolean => {
+      const vencimento = new Date(fatura.data_vencimento);
+      vencimento.setHours(0, 0, 0, 0);
+      const dias = Math.floor((hoje.getTime() - vencimento.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (regra.tipo === 'antes_vencimento') {
+        // Para antes do vencimento, dias deve ser negativo
+        // Ex: -3 significa 3 dias antes, então dias deve ser -3
+        return dias === regra.dias;
+      } else {
+        // Para após o vencimento, dias deve ser positivo
+        // Ex: 3 significa 3 dias depois, então dias deve ser 3
+        return dias === regra.dias;
+      }
+    };
 
     for (const [clienteId, data] of clientesMap) {
-      // Filtrar por dias de atraso
-      if (data.diasAtraso < diasAtrasoMinimo) continue;
-
       // Ordenar faturas por data de vencimento (mais antiga primeiro)
       data.faturas.sort((a, b) => 
         new Date(a.data_vencimento).getTime() - new Date(b.data_vencimento).getTime()
@@ -123,25 +167,103 @@ serve(async (req) => {
       // Enumerar faturas (1ª, 2ª, 3ª, etc.)
       data.faturas.forEach((fatura, index) => {
         const numeroFatura = index + 1;
+        const vencimento = new Date(fatura.data_vencimento);
+        vencimento.setHours(0, 0, 0, 0);
+        const diasAtraso = Math.floor((hoje.getTime() - vencimento.getTime()) / (1000 * 60 * 60 * 24));
 
-        // Aplicar filtro de número de fatura se especificado
-        if (filtroNumeroFatura.length > 0) {
-          // Verificar se o número está no filtro
-          // Se o filtro inclui 4, significa "4ª ou superior"
-          const maxFiltro = Math.max(...filtroNumeroFatura);
-          if (filtroNumeroFatura.includes(4) && numeroFatura >= 4) {
-            // Incluir se o filtro tem 4 e a fatura é 4ª ou superior
-          } else if (!filtroNumeroFatura.includes(numeroFatura)) {
+        // Se a fatura tem mais de 15 dias de atraso, adicionar à fila crítica
+        if (diasAtraso > 15) {
+          faturasCriticas.push({
+            fatura,
+            cliente: data.cliente,
+            diasAtraso,
+          });
+          return; // Não incluir no lote normal
+        }
+
+        let deveIncluir = false;
+
+        if (usarRegras && regrasAtivas.length > 0) {
+          // Verificar se a fatura se encaixa em alguma regra ativa
+          for (const regra of regrasAtivas) {
+            if (verificarRegra(fatura, regra)) {
+              deveIncluir = true;
+              break; // Encontrou uma regra que se aplica
+            }
+          }
+        } else {
+          // Usar lógica antiga (filtros)
+          if (diasAtraso < diasAtrasoMinimo) {
             return; // Pular esta fatura
+          }
+
+          // Aplicar filtro de número de fatura se especificado
+          if (filtroNumeroFatura.length > 0) {
+            const maxFiltro = Math.max(...filtroNumeroFatura);
+            if (filtroNumeroFatura.includes(4) && numeroFatura >= 4) {
+              deveIncluir = true;
+            } else if (filtroNumeroFatura.includes(numeroFatura)) {
+              deveIncluir = true;
+            }
+          } else {
+            deveIncluir = true;
           }
         }
 
-        faturasParaLote.push({
-          fatura,
-          cliente: data.cliente,
-          numeroFatura,
-        });
+        if (deveIncluir) {
+          faturasParaLote.push({
+            fatura,
+            cliente: data.cliente,
+            numeroFatura,
+          });
+        }
       });
+    }
+
+    // Adicionar faturas críticas à fila especial
+    if (faturasCriticas.length > 0) {
+      console.log(`Encontradas ${faturasCriticas.length} faturas críticas (>15 dias)`);
+      
+      // Inserir ou atualizar na fila crítica
+      for (const item of faturasCriticas) {
+        // Verificar se já existe
+        const { data: existing } = await supabase
+          .from("fila_cobranca_critica")
+          .select("id")
+          .eq("fatura_id", item.fatura.id)
+          .eq("processado", false)
+          .maybeSingle();
+
+        if (existing) {
+          // Atualizar existente
+          const { error: updateError } = await supabase
+            .from("fila_cobranca_critica")
+            .update({
+              dias_atraso: item.diasAtraso,
+              prioridade: item.diasAtraso,
+            })
+            .eq("id", existing.id);
+
+          if (updateError) {
+            console.error("Erro ao atualizar fila crítica:", updateError);
+          }
+        } else {
+          // Inserir novo
+          const { error: insertError } = await supabase
+            .from("fila_cobranca_critica")
+            .insert({
+              fatura_id: item.fatura.id,
+              cliente_id: item.cliente.id,
+              dias_atraso: item.diasAtraso,
+              prioridade: item.diasAtraso,
+              processado: false,
+            });
+
+          if (insertError) {
+            console.error("Erro ao adicionar à fila crítica:", insertError);
+          }
+        }
+      }
     }
 
     if (faturasParaLote.length === 0) {
@@ -156,7 +278,7 @@ serve(async (req) => {
       );
     }
 
-    // 5. Criar o lote
+    // 6. Criar o lote (apenas se houver faturas)
     const nomeLote = `Cobrança Automática ${new Date().toLocaleDateString('pt-BR')}`;
     const { data: lote, error: loteError } = await supabase
       .from("lotes_cobranca")
@@ -172,7 +294,7 @@ serve(async (req) => {
 
     console.log("Lote criado:", lote.id);
 
-    // 6. Inserir itens do lote
+    // 7. Inserir itens do lote
     const itensLote = faturasParaLote.map(({ fatura, cliente }) => ({
       lote_id: lote.id,
       fatura_id: fatura.id,
@@ -189,7 +311,7 @@ serve(async (req) => {
 
     console.log("Itens inseridos:", itensLote.length);
 
-    // 7. Gerar mensagens com IA se solicitado
+    // 8. Gerar mensagens com IA se solicitado
     if (gerarMensagens) {
       try {
         const gerarMensagemUrl = `${supabaseUrl}/functions/v1/gerar-mensagem`;
@@ -212,7 +334,7 @@ serve(async (req) => {
       }
     }
 
-    // 8. Atualizar status do lote para aguardando aprovação
+    // 9. Atualizar status do lote para aguardando aprovação
     await supabase
       .from("lotes_cobranca")
       .update({ status: "aguardando_aprovacao" })
@@ -227,7 +349,8 @@ serve(async (req) => {
         loteId: lote.id,
         totalFaturas: faturasParaLote.length,
         totalClientes: clientesUnicos.size,
-        message: `Lote "${nomeLote}" criado com ${faturasParaLote.length} faturas de ${clientesUnicos.size} clientes`,
+        faturasCriticas: faturasCriticas.length,
+        message: `Lote "${nomeLote}" criado com ${faturasParaLote.length} faturas de ${clientesUnicos.size} clientes${faturasCriticas.length > 0 ? `. ${faturasCriticas.length} fatura(s) crítica(s) adicionada(s) à fila especial.` : ''}`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

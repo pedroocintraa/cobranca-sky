@@ -184,3 +184,45 @@ export interface ClienteComFaturas {
   diasAtraso: number;
   mesesAtrasados: string[];
 }
+
+// ============= Sistema de Regras de Cobrança =============
+
+export type TipoRegraCobranca = 'antes_vencimento' | 'apos_vencimento';
+
+export interface RegraCobranca {
+  id: string;
+  tipo: TipoRegraCobranca;
+  dias: number; // Negativo para antes, positivo para depois
+  ativo: boolean;
+  ordem: number;
+  created_at: string;
+  updated_at: string;
+  created_by: string | null;
+}
+
+export interface FilaCobrancaCritica {
+  id: string;
+  fatura_id: string;
+  cliente_id: string;
+  dias_atraso: number;
+  prioridade: number;
+  processado: boolean;
+  processado_at: string | null;
+  created_at: string;
+  updated_at: string;
+  // Joined data
+  fatura?: Fatura;
+  cliente?: Cliente;
+}
+
+// Cliente com faturas atrasadas para visão gerencial
+export interface ClienteComFaturasAtrasadas {
+  cliente: Cliente;
+  faturas: Fatura[];
+  totalFaturas: number;
+  valorTotal: number;
+  diasAtraso: number;
+  maiorAtraso: number; // Maior número de dias de atraso entre as faturas
+  status: 'pendente' | 'atrasado' | 'critico'; // Status baseado no maior atraso
+  mesesAtrasados: string[];
+}

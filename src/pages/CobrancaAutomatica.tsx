@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings } from 'lucide-react';
+import { Plus, Send, Eye, Check, Clock, AlertCircle, CheckCircle2, XCircle, FileText, BarChart3, Settings, Users, Rule } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +18,8 @@ import { LoteDetailsModal } from '@/components/cobranca/LoteDetailsModal';
 import { GeracaoAutomaticaCard } from '@/components/cobranca/GeracaoAutomaticaCard';
 import { AgendamentoCard } from '@/components/cobranca/AgendamentoCard';
 import { RelatoriosTab } from '@/components/cobranca/RelatoriosTab';
+import { ClientesAtrasados } from '@/components/cobranca/ClientesAtrasados';
+import { GerenciarRegrasCobranca } from '@/components/cobranca/GerenciarRegrasCobranca';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { LoteStatus } from '@/types/database';
@@ -56,8 +58,16 @@ export default function CobrancaAutomatica() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="lotes" className="space-y-6">
+      <Tabs defaultValue="clientes" className="space-y-6">
         <TabsList>
+          <TabsTrigger value="clientes" className="gap-2">
+            <Users className="h-4 w-4" />
+            Clientes Atrasados
+          </TabsTrigger>
+          <TabsTrigger value="regras" className="gap-2">
+            <Rule className="h-4 w-4" />
+            Regras
+          </TabsTrigger>
           <TabsTrigger value="lotes" className="gap-2">
             <FileText className="h-4 w-4" />
             Lotes
@@ -71,6 +81,16 @@ export default function CobrancaAutomatica() {
             Relatórios
           </TabsTrigger>
         </TabsList>
+
+        {/* Tab: Clientes Atrasados */}
+        <TabsContent value="clientes" className="space-y-6">
+          <ClientesAtrasados />
+        </TabsContent>
+
+        {/* Tab: Regras */}
+        <TabsContent value="regras" className="space-y-6">
+          <GerenciarRegrasCobranca />
+        </TabsContent>
 
         {/* Tab: Lotes */}
         <TabsContent value="lotes" className="space-y-6">
