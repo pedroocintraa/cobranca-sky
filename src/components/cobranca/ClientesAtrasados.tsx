@@ -28,7 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useClientesComFaturasAtrasadas } from '@/hooks/useRegrasCobranca';
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('pt-BR', {

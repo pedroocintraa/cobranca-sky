@@ -107,10 +107,18 @@ export function GerenciarRegrasCobranca() {
       return;
     }
 
+    // Garantir que todos os campos obrigatórios estejam presentes
+    const regraData = {
+      tipo: data.tipo,
+      dias: data.dias,
+      ativo: data.ativo ?? true,
+      ordem: data.ordem ?? 0,
+    };
+
     if (editingRegra) {
-      await updateRegra.mutateAsync({ id: editingRegra.id, ...data });
+      await updateRegra.mutateAsync({ id: editingRegra.id, ...regraData });
     } else {
-      await createRegra.mutateAsync(data);
+      await createRegra.mutateAsync(regraData);
     }
     setIsDialogOpen(false);
     form.reset();
