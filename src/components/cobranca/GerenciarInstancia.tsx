@@ -200,6 +200,7 @@ export function GerenciarInstancia() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nome</TableHead>
+                    <TableHead>ID Instância</TableHead>
                     <TableHead>Token</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criada em</TableHead>
@@ -210,6 +211,9 @@ export function GerenciarInstancia() {
                   {instancias.map((instancia) => (
                     <TableRow key={instancia.id}>
                       <TableCell className="font-medium">{instancia.nome}</TableCell>
+                      <TableCell className="font-mono text-xs">
+                        {instancia.id_instance || '-'}
+                      </TableCell>
                       <TableCell className="font-mono text-xs">
                         {instancia.token.slice(0, 20)}...
                       </TableCell>
