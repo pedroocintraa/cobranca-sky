@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Smartphone, Plus, Loader2, QrCode, CheckCircle2, XCircle, Trash2, AlertCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,8 +35,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import type { InstanciaWhatsApp } from '@/types/database';
+import { supabase } from '@/integrations/supabase/client';
+import { useQueryClient } from '@tanstack/react-query';
 
 export function GerenciarInstancia() {
+  const queryClient = useQueryClient();
   const { data: instancias, isLoading } = useInstanciasWhatsApp();
   const { data: configWebhooks } = useConfiguracaoWebhooks();
   const criarInstancia = useCriarInstancia();
@@ -49,6 +52,39 @@ export function GerenciarInstancia() {
   const [respostaConexao, setRespostaConexao] = useState<any>(null);
   const [instanciaParaConectar, setInstanciaParaConectar] = useState<InstanciaWhatsApp | null>(null);
   const [instanciaParaDeletar, setInstanciaParaDeletar] = useState<InstanciaWhatsApp | null>(null);
+  const [instanciaConectada, setInstanciaConectada] = useState<InstanciaWhatsApp | null>(null);
+
+  // Realtime subscription para detectar quando a instância é atualizada
+  useEffect(() => {
+    const channel = supabase
+      .channel('instancias-whatsapp-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'instancias_whatsapp',
+        },
+        (payload) => {
+          console.log('Instância atualizada:', payload);
+          const updatedInstancia = payload.new as InstanciaWhatsApp;
+          
+          // Se a instância foi conectada, mostrar popup de sucesso
+          if (updatedInstancia.status === 'conectada' && respostaConexao) {
+            setInstanciaConectada(updatedInstancia);
+            setRespostaConexao(null); // Fechar o popup do QR Code
+          }
+          
+          // Invalidar cache para atualizar a lista
+          queryClient.invalidateQueries({ queryKey: ['instancias-whatsapp'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient, respostaConexao]);
 
   const handleCriarInstancia = async () => {
     if (!nomeInstancia.trim()) {
@@ -468,6 +504,41 @@ export function GerenciarInstancia() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de Sucesso - Instância Conectada via Realtime */}
+      <Dialog open={!!instanciaConectada} onOpenChange={(open) => !open && setInstanciaConectada(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-green-600" />
+              Instância Conectada com Sucesso!
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <CheckCircle2 className="h-10 w-10 text-green-600" />
+              </div>
+              <p className="text-lg font-medium text-green-600 mb-2">
+                WhatsApp conectado!
+              </p>
+              <p className="text-sm text-muted-foreground mb-4">
+                A instância "{instanciaConectada?.nome}" está pronta para enviar mensagens.
+              </p>
+              {instanciaConectada?.telefone && (
+                <p className="text-sm text-muted-foreground">
+                  Telefone: <span className="font-medium">{instanciaConectada.telefone}</span>
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setInstanciaConectada(null)}>
+                Fechar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
