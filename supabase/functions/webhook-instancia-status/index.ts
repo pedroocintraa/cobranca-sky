@@ -96,7 +96,11 @@ serve(async (req) => {
 
     // Mapear status
     let statusBanco: 'criada' | 'conectada' | 'desconectada' | 'erro' = 'criada'
-    const isConnected = dados.instance?.status === 'connected' || dados.status?.connected === true || dados.status?.loggedIn === true
+    const isConnected =
+      (typeof dados === 'object' && dados !== null && (dados as any).status === 'connected') ||
+      dados.instance?.status === 'connected' ||
+      dados.status?.connected === true ||
+      dados.status?.loggedIn === true
     
     if (isConnected) {
       statusBanco = 'conectada'
