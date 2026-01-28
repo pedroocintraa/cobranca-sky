@@ -237,7 +237,7 @@ export function GerenciarInstancia() {
                   <TableRow>
                     <TableHead>Nome</TableHead>
                     <TableHead>ID Instância</TableHead>
-                    <TableHead>Token</TableHead>
+                    <TableHead>Telefone</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Criada em</TableHead>
                     <TableHead className="text-right">Ações</TableHead>
@@ -251,7 +251,7 @@ export function GerenciarInstancia() {
                         {instancia.id_instance || '-'}
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {instancia.token.slice(0, 20)}...
+                        {instancia.telefone || '-'}
                       </TableCell>
                       <TableCell>{getStatusBadge(instancia.status)}</TableCell>
                       <TableCell>
