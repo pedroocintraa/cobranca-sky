@@ -382,36 +382,67 @@ export function GerenciarInstancia() {
 
       {/* Dialog de Resposta - Conectar Instância */}
       <Dialog open={!!respostaConexao} onOpenChange={(open) => !open && setRespostaConexao(null)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {respostaConexao?.success !== false ? (
+              {respostaConexao?.connected ? (
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
-              ) : (
+              ) : respostaConexao?.success === false ? (
                 <XCircle className="h-5 w-5 text-red-600" />
+              ) : (
+                <QrCode className="h-5 w-5 text-primary" />
               )}
-              {respostaConexao?.success !== false ? 'Instância Conectada com Sucesso!' : 'Erro ao Conectar Instância'}
+              {respostaConexao?.connected 
+                ? 'Instância Conectada com Sucesso!' 
+                : respostaConexao?.success === false 
+                  ? 'Erro ao Conectar Instância'
+                  : 'Aguardando Conexão'}
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 flex-1 overflow-auto">
-            {respostaConexao?.message && (
-              <p className={respostaConexao.success !== false ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
-                {respostaConexao.message}
-              </p>
+          <div className="space-y-4">
+            {/* Mensagem de sucesso quando conectado */}
+            {respostaConexao?.connected && (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                  <CheckCircle2 className="h-10 w-10 text-green-600" />
+                </div>
+                <p className="text-lg font-medium text-green-600 mb-2">
+                  WhatsApp conectado!
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  A instância está pronta para enviar mensagens.
+                </p>
+              </div>
             )}
-            {(respostaConexao?.qrcode || respostaConexao?.data?.qrcode) && (
+
+            {/* Mensagem de erro */}
+            {respostaConexao?.success === false && (
+              <div className="flex flex-col items-center justify-center py-4 text-center">
+                <p className="text-red-600 font-medium">
+                  {respostaConexao.message || 'Erro ao conectar instância'}
+                </p>
+              </div>
+            )}
+
+            {/* QR Code apenas quando não conectado e não é erro */}
+            {!respostaConexao?.connected && respostaConexao?.success !== false && (respostaConexao?.qrcode || respostaConexao?.instance?.qrcode) && (
               <div className="space-y-2">
-                <Label>QR Code para Conectar</Label>
+                <Label>Escaneie o QR Code com o WhatsApp</Label>
                 <div className="flex justify-center p-4 bg-muted rounded-lg">
-                  <img src={respostaConexao.qrcode || respostaConexao.data?.qrcode} alt="QR Code" className="max-w-xs" />
+                  <img 
+                    src={respostaConexao.qrcode || respostaConexao.instance?.qrcode} 
+                    alt="QR Code" 
+                    className="max-w-xs" 
+                  />
                 </div>
               </div>
             )}
-            <div className="space-y-2">
-              <Label>Resposta Completa do Webhook</Label>
-              <pre className="p-4 bg-muted rounded-lg text-xs overflow-auto max-h-64">
-                {JSON.stringify(respostaConexao, null, 2)}
-              </pre>
+
+            {/* Botão de fechar */}
+            <div className="flex justify-end">
+              <Button onClick={() => setRespostaConexao(null)}>
+                Fechar
+              </Button>
             </div>
           </div>
         </DialogContent>
