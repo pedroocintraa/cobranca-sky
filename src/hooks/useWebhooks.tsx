@@ -204,18 +204,23 @@ export function useConectarInstancia() {
 
       // Mapear status corretamente
       let statusBanco: 'criada' | 'conectada' | 'desconectada' | 'erro' = 'criada';
+      const isConnected = dados.instance?.status === 'connected' || dados.status?.connected === true || dados.status?.loggedIn === true;
       
-      if (dados.instance?.status === 'connected' || dados.status?.connected === true || dados.status?.loggedIn === true) {
+      if (isConnected) {
         statusBanco = 'conectada';
       } else if (dados.instance?.status === 'disconnected' || dados.status?.connected === false) {
         statusBanco = 'desconectada';
       }
+
+      // Extrair telefone do campo owner
+      const telefone = dados.instance?.owner || null;
 
       // Atualizar instância no banco
       const { data, error } = await supabase
         .from('instancias_whatsapp')
         .update({
           status: statusBanco,
+          telefone: telefone,
           qrcode: dados.qrcode || dados.instance?.qrcode || null,
           resposta_conexao: resposta,
         })
@@ -229,6 +234,7 @@ export function useConectarInstancia() {
         instancia: data,
         resposta: {
           success: true,
+          connected: isConnected,
           ...dados,
         },
       };
@@ -236,7 +242,6 @@ export function useConectarInstancia() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instancias-whatsapp'] });
       queryClient.invalidateQueries({ queryKey: ['instancia-whatsapp-ativa'] });
-      toast({ title: 'Instância conectada!' });
     },
     onError: (error: Error) => {
       toast({
