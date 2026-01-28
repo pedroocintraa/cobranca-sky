@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.disparar-fila-cobranca]
 verify_jwt = false
+
+[functions.webhook-instancia-status]
+verify_jwt = false
