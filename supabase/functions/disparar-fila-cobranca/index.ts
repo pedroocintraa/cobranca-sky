@@ -111,10 +111,11 @@ serve(async (req) => {
 
     console.log(`Encontrados ${itensFila.length} itens pendentes`);
 
-    let totalEnviados = 0;
-    let totalFalhas = 0;
+    // 5. Preparar lista de clientes para o webhook
+    const clientesParaEnviar: any[] = [];
+    const itensValidos: any[] = [];
+    const itensSemTelefone: any[] = [];
 
-    // 5. Processar cada item da fila
     for (const item of itensFila) {
       const cliente = item.cliente;
       const fatura = item.fatura;
@@ -126,74 +127,112 @@ serve(async (req) => {
 
       if (!cliente.telefone) {
         console.log(`Cliente ${cliente.id} sem telefone, pulando...`);
-        // Marcar como falha
-        await supabase
-          .from("filas_cobranca")
-          .update({ 
-            status: "falha",
-            erro_mensagem: "Cliente sem telefone cadastrado",
-            tentativas: item.tentativas + 1
-          })
-          .eq("id", item.id);
-
-        // Registrar no histórico
-        await supabase
-          .from("historico_cobranca")
-          .insert({
-            fatura_id: item.fatura_id,
-            regra_id: item.regra_id,
-            cliente_id: cliente.id,
-            fila_critica: item.regra_id === null,
-            status: "falha",
-            mensagem_enviada: null,
-            canal: "whatsapp",
-          });
-
-        totalFalhas++;
+        itensSemTelefone.push(item);
         continue;
       }
 
-      // Atualizar status para processando
+      // Calcular dias de atraso
+      const hoje = new Date();
+      const vencimento = new Date(fatura.data_vencimento);
+      const diffTime = hoje.getTime() - vencimento.getTime();
+      const diasAtraso = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+
+      // Adicionar cliente à lista
+      clientesParaEnviar.push({
+        nome: cliente.nome,
+        telefone: cliente.telefone,
+        cpf: cliente.cpf || null,
+        valor: fatura.valor,
+        status: fatura.status?.nome || "em_aberto",
+        mesReferencia: fatura.mes_referencia,
+        dataVencimento: fatura.data_vencimento,
+        diasAtraso: diasAtraso,
+        faturaId: fatura.id,
+        clienteId: cliente.id,
+      });
+
+      itensValidos.push(item);
+    }
+
+    // 6. Marcar itens sem telefone como falha
+    for (const item of itensSemTelefone) {
+      await supabase
+        .from("filas_cobranca")
+        .update({ 
+          status: "falha",
+          erro_mensagem: "Cliente sem telefone cadastrado",
+          tentativas: item.tentativas + 1
+        })
+        .eq("id", item.id);
+
+      await supabase
+        .from("historico_cobranca")
+        .insert({
+          fatura_id: item.fatura_id,
+          regra_id: item.regra_id,
+          cliente_id: item.cliente?.id || item.cliente_id,
+          fila_critica: item.regra_id === null,
+          status: "falha",
+          mensagem_enviada: null,
+          canal: "whatsapp",
+        });
+    }
+
+    if (clientesParaEnviar.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `Nenhum cliente com telefone válido. ${itensSemTelefone.length} cliente(s) sem telefone.`,
+          totalEnviados: 0,
+          totalFalhas: itensSemTelefone.length
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 7. Marcar todos os itens válidos como processando
+    for (const item of itensValidos) {
       await supabase
         .from("filas_cobranca")
         .update({ status: "processando" })
         .eq("id", item.id);
+    }
 
-      // 6. Preparar dados para enviar ao webhook
-      const dadosWebhook = {
-        regra: regra ? {
-          id: regra.id,
-          tipo: regra.tipo,
-          dias: regra.dias,
-        } : null,
-        cliente: {
-          nome: cliente.nome,
-          cpf: cliente.cpf,
-          telefone: cliente.telefone,
+    // 8. Preparar payload único com todos os clientes
+    const dataVencimentoBase = itensValidos[0]?.fatura?.data_vencimento || new Date().toISOString().split('T')[0];
+    
+    const payloadWebhook = {
+      empresa: "S A Telecom",
+      vencimento: dataVencimentoBase,
+      token: instanciaAtiva.token,
+      regra: regra ? {
+        id: regra.id,
+        tipo: regra.tipo,
+        dias: regra.dias,
+      } : null,
+      clientes: clientesParaEnviar,
+    };
+
+    console.log(`Enviando ${clientesParaEnviar.length} clientes para o webhook`);
+
+    // 9. Enviar requisição única para o webhook
+    let totalEnviados = 0;
+    let totalFalhas = itensSemTelefone.length;
+
+    try {
+      const response = await fetch(configWebhooks.webhook_disparo, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-        token: instanciaAtiva.token,
-        fatura: {
-          id: fatura.id,
-          mes_referencia: fatura.mes_referencia,
-          data_vencimento: fatura.data_vencimento,
-          valor: fatura.valor,
-        },
-      };
+        body: JSON.stringify(payloadWebhook),
+      });
 
-      // 7. Enviar para webhook
-      try {
-        const response = await fetch(configWebhooks.webhook_disparo, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(dadosWebhook),
-        });
+      const respostaWebhook = await response.json();
 
-        const respostaWebhook = await response.json();
-
-        if (response.ok && respostaWebhook.success !== false) {
-          // Sucesso
+      if (response.ok && respostaWebhook.success !== false) {
+        // Sucesso - marcar todos os itens como enviados
+        for (const item of itensValidos) {
           await supabase
             .from("filas_cobranca")
             .update({ 
@@ -203,13 +242,12 @@ serve(async (req) => {
             })
             .eq("id", item.id);
 
-          // Registrar no histórico
           await supabase
             .from("historico_cobranca")
             .insert({
               fatura_id: item.fatura_id,
               regra_id: item.regra_id,
-              cliente_id: cliente.id,
+              cliente_id: item.cliente?.id || item.cliente_id,
               fila_critica: item.regra_id === null,
               status: "enviado",
               mensagem_enviada: respostaWebhook.mensagem || null,
@@ -218,11 +256,14 @@ serve(async (req) => {
             });
 
           totalEnviados++;
-          console.log(`✓ Cobrança enviada para ${cliente.telefone}`);
-        } else {
-          // Falha
-          const errorMessage = respostaWebhook.message || respostaWebhook.error || "Erro desconhecido no webhook";
-          
+        }
+
+        console.log(`✓ Lote enviado com sucesso: ${totalEnviados} clientes`);
+      } else {
+        // Falha - marcar todos os itens como falha
+        const errorMessage = respostaWebhook.message || respostaWebhook.error || "Erro desconhecido no webhook";
+        
+        for (const item of itensValidos) {
           await supabase
             .from("filas_cobranca")
             .update({ 
@@ -232,13 +273,12 @@ serve(async (req) => {
             })
             .eq("id", item.id);
 
-          // Registrar no histórico
           await supabase
             .from("historico_cobranca")
             .insert({
               fatura_id: item.fatura_id,
               regra_id: item.regra_id,
-              cliente_id: cliente.id,
+              cliente_id: item.cliente?.id || item.cliente_id,
               fila_critica: item.regra_id === null,
               status: "falha",
               mensagem_enviada: null,
@@ -247,13 +287,16 @@ serve(async (req) => {
             });
 
           totalFalhas++;
-          console.error(`✗ Erro ao enviar para ${cliente.telefone}:`, errorMessage);
         }
-      } catch (sendError) {
-        console.error(`Erro ao chamar webhook:`, sendError);
-        
-        const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
-        
+
+        console.error(`✗ Erro no webhook:`, errorMessage);
+      }
+    } catch (sendError) {
+      console.error(`Erro ao chamar webhook:`, sendError);
+      
+      const errorMessage = sendError instanceof Error ? sendError.message : String(sendError);
+      
+      for (const item of itensValidos) {
         await supabase
           .from("filas_cobranca")
           .update({ 
@@ -263,13 +306,12 @@ serve(async (req) => {
           })
           .eq("id", item.id);
 
-        // Registrar no histórico
         await supabase
           .from("historico_cobranca")
           .insert({
             fatura_id: item.fatura_id,
             regra_id: item.regra_id,
-            cliente_id: cliente.id,
+            cliente_id: item.cliente?.id || item.cliente_id,
             fila_critica: item.regra_id === null,
             status: "falha",
             mensagem_enviada: null,
@@ -288,7 +330,7 @@ serve(async (req) => {
         success: true,
         totalEnviados,
         totalFalhas,
-        message: `${totalEnviados} mensagem(ns) enviada(s) com sucesso${totalFalhas > 0 ? `. ${totalFalhas} falha(s).` : '.'}`,
+        message: `${totalEnviados} cliente(s) enviado(s) com sucesso${totalFalhas > 0 ? `. ${totalFalhas} falha(s).` : '.'}`,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
