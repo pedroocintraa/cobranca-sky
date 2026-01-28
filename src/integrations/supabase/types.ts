@@ -564,11 +564,13 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          id_instance: string | null
           nome: string
           qrcode: string | null
           resposta_conexao: Json | null
           resposta_criacao: Json | null
           status: Database["public"]["Enums"]["status_instancia"]
+          telefone: string | null
           token: string
           updated_at: string
         }
@@ -576,11 +578,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          id_instance?: string | null
           nome: string
           qrcode?: string | null
           resposta_conexao?: Json | null
           resposta_criacao?: Json | null
           status?: Database["public"]["Enums"]["status_instancia"]
+          telefone?: string | null
           token?: string
           updated_at?: string
         }
@@ -588,11 +592,13 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          id_instance?: string | null
           nome?: string
           qrcode?: string | null
           resposta_conexao?: Json | null
           resposta_criacao?: Json | null
           status?: Database["public"]["Enums"]["status_instancia"]
+          telefone?: string | null
           token?: string
           updated_at?: string
         }

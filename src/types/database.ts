@@ -295,6 +295,8 @@ export interface InstanciaWhatsApp {
   id: string;
   nome: string;
   token: string;
+  id_instance: string | null;
+  telefone: string | null;
   status: StatusInstancia;
   qrcode: string | null;
   resposta_criacao: Record<string, unknown> | null;

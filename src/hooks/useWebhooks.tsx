@@ -124,9 +124,17 @@ export function useCriarInstancia() {
         throw new Error(resposta.message || resposta.error || 'Erro ao criar instância');
       }
 
-      // Se a resposta não tem success, considerar como sucesso se status é 200
-      if (resposta.success === undefined && response.ok) {
-        resposta.success = true;
+      // Extrair dados da resposta - pode ser array ou objeto
+      const dados = Array.isArray(resposta) ? resposta[0] : resposta;
+      
+      // Mapear status corretamente - o webhook retorna status como objeto
+      // Precisamos converter para o enum do banco: 'criada', 'conectada', 'desconectada', 'erro'
+      let statusBanco: 'criada' | 'conectada' | 'desconectada' | 'erro' = 'criada';
+      
+      if (dados.instance?.status === 'connected' || dados.status?.connected === true) {
+        statusBanco = 'conectada';
+      } else if (dados.instance?.status === 'disconnected' || dados.status?.connected === false) {
+        statusBanco = 'criada'; // Instância criada mas não conectada
       }
 
       // Salvar instância no banco
@@ -134,11 +142,13 @@ export function useCriarInstancia() {
       const { data, error } = await supabase
         .from('instancias_whatsapp')
         .insert([{
-          nome,
-          token: resposta.token || resposta.data?.token || '',
-          status: resposta.status || resposta.data?.status || 'criada',
-          qrcode: resposta.qrcode || resposta.data?.qrcode || null,
-          resposta_criacao: resposta,
+          nome: dados.name || dados.instance?.name || nome,
+          token: dados.token || dados.instance?.token || '',
+          id_instance: dados.instance?.id || null,
+          telefone: null, // Será preenchido quando conectar
+          status: statusBanco,
+          qrcode: dados.qrcode || dados.instance?.qrcode || null,
+          resposta_criacao: resposta, // Salvar resposta completa
           created_by: user?.id,
         }])
         .select()
@@ -147,16 +157,17 @@ export function useCriarInstancia() {
       if (error) throw error;
 
       return {
-        instancia: data as InstanciaWhatsApp,
+        instancia: data,
         resposta: {
           success: true,
-          ...resposta,
+          ...dados,
         },
       };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instancias-whatsapp'] });
       queryClient.invalidateQueries({ queryKey: ['instancia-whatsapp-ativa'] });
+      toast({ title: 'Instância criada com sucesso!' });
     },
     onError: (error: Error) => {
       toast({
@@ -188,17 +199,24 @@ export function useConectarInstancia() {
         throw new Error(resposta.message || resposta.error || 'Erro ao conectar instância');
       }
 
-      // Se a resposta não tem success, considerar como sucesso se status é 200
-      if (resposta.success === undefined && response.ok) {
-        resposta.success = true;
+      // Extrair dados da resposta - pode ser array ou objeto
+      const dados = Array.isArray(resposta) ? resposta[0] : resposta;
+
+      // Mapear status corretamente
+      let statusBanco: 'criada' | 'conectada' | 'desconectada' | 'erro' = 'criada';
+      
+      if (dados.instance?.status === 'connected' || dados.status?.connected === true || dados.status?.loggedIn === true) {
+        statusBanco = 'conectada';
+      } else if (dados.instance?.status === 'disconnected' || dados.status?.connected === false) {
+        statusBanco = 'desconectada';
       }
 
       // Atualizar instância no banco
       const { data, error } = await supabase
         .from('instancias_whatsapp')
         .update({
-          status: resposta.status || resposta.data?.status || 'conectada',
-          qrcode: resposta.qrcode || resposta.data?.qrcode || null,
+          status: statusBanco,
+          qrcode: dados.qrcode || dados.instance?.qrcode || null,
           resposta_conexao: resposta,
         })
         .eq('id', instanciaId)
@@ -208,16 +226,17 @@ export function useConectarInstancia() {
       if (error) throw error;
 
       return {
-        instancia: data as InstanciaWhatsApp,
+        instancia: data,
         resposta: {
           success: true,
-          ...resposta,
+          ...dados,
         },
       };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['instancias-whatsapp'] });
       queryClient.invalidateQueries({ queryKey: ['instancia-whatsapp-ativa'] });
+      toast({ title: 'Instância conectada!' });
     },
     onError: (error: Error) => {
       toast({
