@@ -205,6 +205,36 @@ export type Database = {
         }
         Relationships: []
       }
+      configuracoes_webhooks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          updated_at: string
+          webhook_conectar_instancia: string | null
+          webhook_criar_instancia: string | null
+          webhook_disparo: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+          webhook_conectar_instancia?: string | null
+          webhook_criar_instancia?: string | null
+          webhook_disparo?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          updated_at?: string
+          webhook_conectar_instancia?: string | null
+          webhook_criar_instancia?: string | null
+          webhook_disparo?: string | null
+        }
+        Relationships: []
+      }
       faturas: {
         Row: {
           cobranca_id: string
@@ -529,6 +559,45 @@ export type Database = {
         }
         Relationships: []
       }
+      instancias_whatsapp: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          nome: string
+          qrcode: string | null
+          resposta_conexao: Json | null
+          resposta_criacao: Json | null
+          status: Database["public"]["Enums"]["status_instancia"]
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome: string
+          qrcode?: string | null
+          resposta_conexao?: Json | null
+          resposta_criacao?: Json | null
+          status?: Database["public"]["Enums"]["status_instancia"]
+          token?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          nome?: string
+          qrcode?: string | null
+          resposta_conexao?: Json | null
+          resposta_criacao?: Json | null
+          status?: Database["public"]["Enums"]["status_instancia"]
+          token?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       itens_lote: {
         Row: {
           cliente_id: string
@@ -782,6 +851,7 @@ export type Database = {
       status_envio: "pendente" | "enviando" | "enviado" | "falha"
       status_fila_cobranca: "pendente" | "processando" | "enviado" | "falha"
       status_historico_cobranca: "enviado" | "falha"
+      status_instancia: "criada" | "conectada" | "desconectada" | "erro"
       tipo_mensagem: "cobranca" | "lembrete" | "agradecimento"
     }
     CompositeTypes: {
@@ -922,6 +992,7 @@ export const Constants = {
       status_envio: ["pendente", "enviando", "enviado", "falha"],
       status_fila_cobranca: ["pendente", "processando", "enviado", "falha"],
       status_historico_cobranca: ["enviado", "falha"],
+      status_instancia: ["criada", "conectada", "desconectada", "erro"],
       tipo_mensagem: ["cobranca", "lembrete", "agradecimento"],
     },
   },
